@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuzlocke - Team Overlay Pro 1200x150</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: transparent !important;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 1200px;
+            height: 150px; 
+        }
+        
+        /* Conteneur principal utilisant pleinement les 1200px de large */
+        .team-container {
+            width: 1200px;
+            height: 150px; 
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            align-items: center;
+            justify-items: center;
+        }
+
+        .pokemon-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end; 
+            width: 100%;
+            height: 100%;
+            position: relative;
+            padding-bottom: 4px; /* Optimisé pour utiliser tout l'espace vertical */
+        }
+
+        /* Agrandissement du conteneur de sprite pour utiliser l'espace (130px de large) */
+        .sprite-container {
+            width: 130px;
+            height: 115px;
+            display: flex;
+            align-items: flex-end; 
+            justify-content: center;
+            position: relative;
+            margin-bottom: 2px;
+        }
+
+        /* Plateforme élargie à 120px pour mieux asseoir les grands sprites */
+        .poke-platform {
+            position: absolute;
+            bottom: -12px; 
+            width: 120px;
+            height: 45px; 
+            background-image: url('platform_crop.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center bottom;
+            z-index: 0;
+        }
+
+        /* Aura pulsante élargie derrière le Pokémon */
+        .poke-glow {
+            position: absolute;
+            bottom: 10px;
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            z-index: 1;
+            animation: pulse-glow 3s infinite ease-in-out;
+        }
+
+        /* Sprite agrandi (max 95%) pour remplir la hauteur de 150px */
+        .pokemon-sprite {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+            z-index: 2;
+            image-rendering: auto;
+            animation: floating 8s infinite ease-in-out;
+            transform-origin: bottom center;
+        }
+
+        /* Conteneur d'infos légèrement plus haut et plus large */
+        .info-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 3;
+            height: 30px;
+            background: rgba(0,0,0,0.25);
+            padding: 0 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+
+        /* Surnom agrandi pour une meilleure visibilité sur le stream */
+        .nickname-text {
+            color: white;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 1.15rem;
+            letter-spacing: 0.02em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            white-space: nowrap;
+            max-width: 160px; /* Plus d'espace pour afficher les longs noms */
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gender-icon {
+            font-size: 1.2rem;
+            font-weight: 900;
+            text-shadow: 1.5px 1.5px 0px rgba(0,0,0,0.5);
+        }
+        .male { color: #60a5fa; }
+        .female { color: #f472b6; }
+
+        /* ANIMATIONS */
+        @keyframes floating {
+            0%, 100% { 
+                transform: translateY(0) translateX(-1px) rotate(-1.5deg); 
+            }
+            50% { 
+                transform: translateY(-3px) translateX(1px) rotate(1.5deg); 
+            }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.2); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.85) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="team-wrapper" class="team-container">
+        <div id="slot-0" class="pokemon-slot"></div>
+        <div id="slot-1" class="pokemon-slot"></div>
+        <div id="slot-2" class="pokemon-slot"></div>
+        <div id="slot-3" class="pokemon-slot"></div>
+        <div id="slot-4" class="pokemon-slot"></div>
+        <div id="slot-5" class="pokemon-slot"></div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            apiUrl: "http://127.0.0.1:31124/box",
+            refreshInterval: 10000, // Ajusté à 10 secondes (10000 ms) pour plus de stabilité
+            showdownUrl: "https://play.pokemonshowdown.com/sprites/ani",
+            fallbackUrl: "https://img.pokemondb.net/sprites/home/normal"
+        };
+
+        async function fetchTeamData() {
+            try {
+                const res = await fetch(CONFIG.apiUrl);
+                if (!res.ok) return null; // Conserve l'état précédent en cas de plantage du serveur local
+                const text = await res.text();
+                
+                // Sécurité anti-clignotement : si le fichier texte est vide (pendant que le script l'écrit),
+                // on renvoie null pour conserver l'état de l'équipe précédente sans faire clignoter OBS.
+                if (!text || text.trim() === "") return null;
+                
+                const blocks = text.trim().split(/\n\s*\n/).filter(b => b.trim() !== "");
+                if (blocks.length === 0) return null;
+
+                return blocks.map(block => {
+                    const lines = block.split('\n').map(l => l.trim());
+                    const firstLine = lines[0];
+                    
+                    // 1. On retire la partie objet (@ ...) pour ne pas fausser l'analyse
+                    let cleanLine = firstLine.split('@')[0].trim();
+                    
+                    // 2. On extrait le genre à la toute fin s'il existe (ex: "(M)" ou "(F)")
+                    let gender = null;
+                    const genderMatch = cleanLine.match(/\s\(([MF])\)$/);
+                    if (genderMatch) {
+                        gender = genderMatch[1];
+                        cleanLine = cleanLine.replace(/\s\(([MF])\)$/, '').trim();
+                    }
+                    
+                    // 3. On extrait proprement le surnom et l'espèce
+                    let nickname = cleanLine;
+                    let species = cleanLine;
+                    
+                    const nameMatch = cleanLine.match(/^(.*?)\s\((.*?)\)$/);
+                    if (nameMatch) {
+                        nickname = nameMatch[1].trim();
+                        species = nameMatch[2].trim();
+                    }
+
+                    const isDead = block.toLowerCase().includes('dead: yes');
+                    const spriteName = species.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                    return {
+                        nickname,
+                        species,
+                        gender,
+                        isDead,
+                        sprite: `${CONFIG.showdownUrl}/${spriteName}.gif`,
+                        fallback: `${CONFIG.fallbackUrl}/${spriteName}.png`
+                    };
+                }).filter(p => !p.isDead).slice(0, 6);
+            } catch (e) {
+                console.error("Erreur API:", e);
+                return null; // Conserve l'état précédent en cas d'erreur de connexion
+            }
+        }
+
+        function updateSlot(index, pokemon) {
+            const slot = document.getElementById(`slot-${index}`);
+            
+            if (!pokemon) {
+                slot.innerHTML = "";
+                slot.removeAttribute('data-id');
+                return;
+            }
+
+            const pkmnId = `${pokemon.nickname}-${pokemon.species}`;
+            if (slot.getAttribute('data-id') === pkmnId) return;
+
+            slot.setAttribute('data-id', pkmnId);
+            
+            const genderHtml = pokemon.gender === 'M' ? '<span class="gender-icon male">♂</span>' : 
+                               pokemon.gender === 'F' ? '<span class="gender-icon female">♀</span>' : '';
+
+            slot.innerHTML = `
+                <div class="sprite-container fade-in">
+                    <div class="poke-platform"></div>
+                    <div class="poke-glow"></div>
+                    <img src="${pokemon.sprite}" 
+                         alt="${pokemon.species}" 
+                         class="pokemon-sprite" 
+                         onerror="this.src='${pokemon.fallback}'">
+                </div>
+                <div class="info-container fade-in">
+                    <span class="nickname-text">${pokemon.nickname}</span>
+                    ${genderHtml}
+                </div>
+            `;
+        }
+
+        async function update() {
+            const team = await fetchTeamData();
+            // Si le fetch renvoie null (erreur ou fichier vide temporaire), on ne fait rien
+            // et on garde l'affichage actuel sans clignotement.
+            if (team === null) return;
+
+            for (let i = 0; i < 6; i++) {
+                updateSlot(i, team[i] || null);
+            }
+        }
+
+        update();
+        setInterval(update, CONFIG.refreshInterval);
+    </script>
+</body>
+</html>

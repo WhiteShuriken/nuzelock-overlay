@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuzlocke - PC Box Overlay 312x282</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: transparent !important;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 312px; /* 156px * 2 */
+            height: 282px; /* 141px * 2 */
+        }
+
+        /* Cadre principal utilisant le fond box.png doublé */
+        .box-container {
+            width: 312px;
+            height: 282px;
+            background-image: url('box.png');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            position: relative;
+            overflow: hidden;
+            will-change: transform, opacity;
+        }
+
+        /* Animations de glissement adaptées à l'échelle x2 */
+        @keyframes slideOutToRight {
+            0% { transform: translateX(0); opacity: 1; }
+            100% { transform: translateX(320px); opacity: 0; }
+        }
+
+        @keyframes slideInFromLeft {
+            0% { transform: translateX(-320px); opacity: 0; }
+            100% { transform: translateX(0); opacity: 1; }
+        }
+
+        .slide-out-anim {
+            animation: slideOutToRight var(--slide-duration, 0.5s) ease-in-out forwards;
+        }
+
+        .slide-in-anim {
+            animation: slideInFromLeft var(--slide-duration, 0.5s) ease-in-out forwards;
+        }
+
+        /* Titre centré, ajusté de -8px (remonté x2 de 4px) et doublé en taille */
+        .box-title {
+            position: absolute;
+            top: -8px; 
+            left: 0;
+            width: 312px;
+            height: 52px; /* 26px * 2 */
+            line-height: 52px;
+            text-align: center;
+            font-size: 22px; /* 11px * 2 */
+            font-weight: 900;
+            color: #ffffff;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            text-shadow: 2px 3px 2px rgba(0, 0, 0, 0.9);
+            z-index: 10;
+        }
+
+        /* Grille 6x5 doublée commençant après les 52px du haut */
+        .box-grid {
+            position: absolute;
+            top: 52px; /* 26px * 2 */
+            left: 0;
+            width: 312px;
+            height: 230px; /* 115px * 2 */
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            justify-items: center;
+            align-items: center;
+            padding: 4px 8px 8px 8px;
+            box-sizing: border-box;
+            z-index: 5;
+        }
+
+        /* Dimension des icônes doublée */
+        .pc-sprite {
+            width: 40px; /* 20px * 2 */
+            height: 40px; /* 20px * 2 */
+            object-fit: contain;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.7));
+            image-rendering: auto;
+            transform-origin: bottom center;
+            animation: idle-breathing 4s infinite ease-in-out;
+        }
+
+        @keyframes idle-breathing {
+            0%, 100% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.05) translateY(-1px); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.7); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .shiny-star {
+            position: absolute;
+            font-size: 14px; /* doublé */
+            top: 1px;
+            right: 1px;
+            color: #facc15;
+            text-shadow: 0 1px 2px rgba(0,0,0,1);
+            z-index: 10;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="box-container" id="box-container">
+        <!-- Titre Centré qui change automatiquement selon la boîte PC active -->
+        <div class="box-title" id="box-active-title">Boite PC</div>
+
+        <!-- Grille 6x5 contenant les sprites -->
+        <div class="box-grid" id="grid-slots">
+            <!-- 30 Slots injectés en JS -->
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        let latestState = null;
+        let currentDisplayBoxIndex = 0; 
+        let cycleInterval = null;
+        let isTransitioning = false;
+
+        function initGrid() {
+            const grid = document.getElementById('grid-slots');
+            grid.innerHTML = '';
+            for (let i = 0; i < 30; i++) {
+                const slotDiv = document.createElement('div');
+                slotDiv.id = `pc-slot-${i}`;
+                slotDiv.className = "w-full h-full flex items-center justify-center relative";
+                grid.appendChild(slotDiv);
+            }
+        }
+
+        function renderBox(boxIndex) {
+            if (!latestState || !Array.isArray(latestState.boxes)) return;
+            
+            const activeBox = latestState.boxes[boxIndex] || Array(30).fill(null);
+
+            const titleDiv = document.getElementById('box-active-title');
+            if (titleDiv) {
+                titleDiv.innerText = `Boite ${boxIndex + 1}`;
+            }
+
+            for (let i = 0; i < 30; i++) {
+                const slotDiv = document.getElementById(`pc-slot-${i}`);
+                if (!slotDiv) continue;
+
+                const pokemon = activeBox[i];
+                if (!pokemon) {
+                    slotDiv.innerHTML = '';
+                    slotDiv.removeAttribute('data-id');
+                    continue;
+                }
+
+                const pkmnId = `${pokemon.nickname || 'sans-nom'}-${pokemon.enSpecies || 'sans-espece'}-${pokemon.isShiny ? 'shiny' : 'normal'}`;
+                if (slotDiv.getAttribute('data-id') === pkmnId) continue;
+                slotDiv.setAttribute('data-id', pkmnId);
+
+                const enSpecies = pokemon.enSpecies || pokemon.frSpecies || '';
+                const spriteNameClean = enSpecies.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const fallbackUrl = `https://img.pokemondb.net/sprites/home/normal/${spriteNameClean}.png`;
+
+                slotDiv.innerHTML = `
+                    ${pokemon.isShiny ? '<span class="shiny-star">★</span>' : ''}
+                    <img src="${pokemon.sprite}" 
+                         alt="${pokemon.frSpecies || ''}" 
+                         class="pc-sprite fade-in" 
+                         onerror="this.src='${fallbackUrl}'; this.onerror=null;">
+                `;
+            }
+        }
+
+        function triggerNextBox() {
+            if (isTransitioning) return;
+            if (!latestState || !Array.isArray(latestState.boxes) || latestState.boxes.length <= 1) {
+                return;
+            }
+
+            isTransitioning = true;
+            const container = document.getElementById('box-container');
+            const config = latestState.config || {};
+            const slideDuration = config.boxSlideDuration !== undefined ? config.boxSlideDuration : 0.5;
+
+            document.documentElement.style.setProperty('--slide-duration', `${slideDuration}s`);
+
+            container.classList.remove('slide-in-anim');
+            container.classList.add('slide-out-anim');
+
+            setTimeout(() => {
+                currentDisplayBoxIndex = (currentDisplayBoxIndex + 1) % latestState.boxes.length;
+                renderBox(currentDisplayBoxIndex);
+
+                container.classList.remove('slide-out-anim');
+                container.classList.add('slide-in-anim');
+
+                setTimeout(() => {
+                    isTransitioning = false;
+                }, slideDuration * 1000);
+
+            }, slideDuration * 1000);
+        }
+
+        function startCycleTimer() {
+            if (cycleInterval) {
+                clearInterval(cycleInterval);
+                cycleInterval = null;
+            }
+
+            if (!latestState || !latestState.config) return;
+            const config = latestState.config;
+            const cycleDurationSec = config.boxCycleDuration !== undefined ? config.boxCycleDuration : 5;
+
+            cycleInterval = setInterval(() => {
+                triggerNextBox();
+            }, cycleDurationSec * 1000);
+        }
+
+        function handleStateUpdate(state) {
+            latestState = state;
+            
+            if (currentDisplayBoxIndex >= latestState.boxes.length) {
+                currentDisplayBoxIndex = 0;
+            }
+
+            if (!isTransitioning) {
+                renderBox(currentDisplayBoxIndex);
+            }
+
+            startCycleTimer();
+        }
+
+        initGrid();
+
+        socket.on('init', (data) => {
+            if (data && data.state) {
+                handleStateUpdate(data.state);
+            }
+        });
+
+        socket.on('state_updated', (state) => {
+            if (state) {
+                handleStateUpdate(state);
+            }
+        });
+    </script>
+</body>
+</html>

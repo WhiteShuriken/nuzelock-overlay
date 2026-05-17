@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuzlocke - Cemetery Overlay Manuel 1920x70</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: transparent !important;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 70px; /* Hauteur de 70px pour le stream */
+            display: flex;
+            align-items: center;
+        }
+        
+        .scroll-container {
+            width: 1920px;
+            height: 70px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .scroll-content {
+            display: flex; /* Changé de inline-flex à flex */
+            align-items: center;
+            transform: translateX(1920px);
+            width: max-content; /* Force la prise en compte de toute la largeur du texte */
+            flex-shrink: 0; /* Empêche le conteneur global de s'écraser dans les 1920px */
+        }
+
+        @keyframes marquee-once {
+            from { transform: translateX(1920px); }
+            to { transform: translateX(-100%); }
+        }
+
+        .grayscale-filter { 
+            filter: grayscale(100%) brightness(1.2) drop-shadow(0 2px 3px rgba(0,0,0,0.5)); 
+        }
+
+        .death-entry {
+            display: flex; /* Changé à flex */
+            align-items: center;
+            margin-right: 45px; /* Espace aéré entre chaque mort */
+            height: 100%; 
+            flex-shrink: 0; /* CRUCIAL : Empêche cette cellule de se faire compresser par les autres */
+            white-space: nowrap; /* Interdit les retours à la ligne */
+        }
+
+        .message-text {
+            color: white;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 1.6rem; 
+            letter-spacing: -0.02em;
+            text-shadow: 2px 3px 4px rgba(0,0,0,0.9);
+            margin: 0 20px;
+            flex-shrink: 0; /* CRUCIAL : Ne pas écraser le texte d'intro/outro */
+            white-space: nowrap;
+        }
+
+        .nickname-text {
+            color: #ef4444; 
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 1.6rem; 
+            letter-spacing: -0.02em;
+            text-shadow: 2px 3px 4px rgba(0,0,0,0.9);
+            white-space: nowrap;
+        }
+
+        .details-badge {
+            font-size: 1.1rem; 
+            font-weight: 800;
+            color: #9ca3af;
+            text-transform: lowercase;
+            font-style: italic;
+            margin-left: 6px;
+            text-shadow: 1px 2px 3px rgba(0,0,0,0.8);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="cemetery-wrapper" class="scroll-container">
+        <div id="cemetery-scroll" class="scroll-content">
+            <!-- Injecté via JS -->
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        const CONFIG = {
+            messageDebut: "Ils nous ont quittés :",
+            messageFin: "— Reposez en paix.",
+            vitesseDefilement: 18, 
+            tempsAttente: 45000 
+        };
+
+        let isRunning = false;
+        let cemeteryData = [];
+
+        function updateConfig(config) {
+            if (!config) return;
+            if (config.cemeteryStartText !== undefined) CONFIG.messageDebut = config.cemeteryStartText;
+            if (config.cemeteryEndText !== undefined) CONFIG.messageFin = config.cemeteryEndText;
+            if (config.cemeterySpeed !== undefined) CONFIG.vitesseDefilement = Number(config.cemeterySpeed);
+            if (config.cemeteryPause !== undefined) CONFIG.tempsAttente = Number(config.cemeteryPause);
+        }
+
+        socket.on('init', (data) => { 
+            cemeteryData = data.state.cemetery; 
+            updateConfig(data.state.config);
+        });
+
+        socket.on('state_updated', (state) => { 
+            cemeteryData = state.cemetery; 
+            updateConfig(state.config);
+        });
+
+        function createHTML(cemetery) {
+            const listHtml = cemetery.map(p => {
+                let detailsText = '';
+                if (p.level || p.deathCause) {
+                    detailsText = ' (';
+                    if (p.level) detailsText += `Niv.${p.level}`;
+                    if (p.level && p.deathCause) detailsText += ' — ';
+                    if (p.deathCause) detailsText += `${p.deathCause}`;
+                    detailsText += ')';
+                }
+
+                // Hauteur verrouillée à 46px maximum (avec max-h et h) pour empêcher tout débordement de la zone de 70px
+                return `
+                    <div class="death-entry">
+                        <img src="${p.sprite}" class="max-h-[46px] h-[46px] w-auto object-contain grayscale-filter mr-2" onerror="this.style.display='none'">
+                        <span class="nickname-text">${p.nickname}</span>
+                        ${detailsText ? `<span class="details-badge">${detailsText}</span>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <span class="message-text">${CONFIG.messageDebut}</span>
+                ${listHtml}
+                <span class="message-text">${CONFIG.messageFin}</span>
+            `;
+        }
+
+        function startCycle() {
+            if (isRunning) return;
+            
+            if (!cemeteryData || cemeteryData.length === 0) {
+                setTimeout(startCycle, 10000);
+                return;
+            }
+
+            isRunning = true;
+            const wrapper = document.getElementById('cemetery-wrapper');
+            const scroll = document.getElementById('cemetery-scroll');
+
+            scroll.innerHTML = createHTML(cemeteryData);
+            wrapper.style.opacity = "1";
+            
+            scroll.style.animation = `marquee-once ${CONFIG.vitesseDefilement}s linear forwards`;
+
+            let fallbackTimer;
+
+            const onCycleEnd = () => {
+                if (!isRunning) return; // Sécurité anti-doublon
+                clearTimeout(fallbackTimer);
+                
+                wrapper.style.opacity = "0";
+                scroll.style.animation = "none";
+                
+                setTimeout(() => {
+                    isRunning = false;
+                    setTimeout(startCycle, CONFIG.tempsAttente);
+                }, 1000);
+            };
+
+            scroll.onanimationend = onCycleEnd;
+
+            // Fallback de sécurité (temps de l'animation + marge de 1.5s)
+            fallbackTimer = setTimeout(onCycleEnd, (CONFIG.vitesseDefilement * 1000) + 1500);
+        }
+
+        window.onload = () => {
+            setTimeout(startCycle, 2000);
+        };
+    </script>
+</body>
+</html>

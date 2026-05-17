@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuzlocke - Cemetery Overlay 1920x50</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: transparent !important;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 50px; /* Hauteur fixe pour OBS */
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Conteneur principal */
+        .scroll-container {
+            width: 1920px;
+            height: 50px;
+            overflow: hidden;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .scroll-content {
+            display: inline-flex;
+            align-items: center;
+            transform: translateX(1920px);
+        }
+
+        /* Animation d'un seul passage */
+        @keyframes marquee-once {
+            from { transform: translateX(1920px); }
+            to { transform: translateX(-100%); }
+        }
+
+        .grayscale-filter { 
+            filter: grayscale(100%) brightness(1.2) drop-shadow(0 1px 2px rgba(0,0,0,0.5)); 
+        }
+
+        .death-entry {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 25px;
+        }
+
+        .message-text {
+            color: white;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 1.1rem;
+            letter-spacing: -0.02em;
+            text-shadow: 2px 2px 3px rgba(0,0,0,0.8);
+            margin: 0 15px;
+            line-height: 50px;
+        }
+
+        .nickname-text {
+            color: #ef4444; 
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 1.1rem;
+            letter-spacing: -0.02em;
+            text-shadow: 2px 2px 3px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="cemetery-wrapper" class="scroll-container">
+        <div id="cemetery-scroll" class="scroll-content">
+            <!-- Injecté via JS -->
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // OPTIONS DE CONFIGURATION (Modifiables)
+        // ==========================================
+        const CONFIG = {
+            apiUrl: "http://127.0.0.1:31124/box",
+            messageDebut: "Ils nous ont quittés :",
+            messageFin: "— Reposez en paix.",
+            vitesseDefilement: 18, // Temps en secondes pour traverser les 1920px
+            tempsAttente: 45000,   // Temps X : pause entre deux passages (45s par défaut)
+            dossierSprites: "./CemeteryOverlaySprite/"
+        };
+
+        let isRunning = false;
+
+        async function fetchPokemonData() {
+            try {
+                const res = await fetch(CONFIG.apiUrl);
+                if (!res.ok) return [];
+                const text = await res.text();
+                
+                const blocks = text.trim().split(/\n\s*\n/);
+                return blocks.map(block => {
+                    const lines = block.split('\n').map(l => l.trim());
+                    const firstLine = lines[0];
+                    let nickname = firstLine;
+                    let species = firstLine;
+                    
+                    const nameMatch = firstLine.match(/^(.*?)\s\((.*?)\)/);
+                    if (nameMatch) {
+                        nickname = nameMatch[1];
+                        species = nameMatch[2];
+                    }
+
+                    const isDead = block.toLowerCase().includes('dead: yes');
+                    const spriteFileName = species.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                    return {
+                        nickname,
+                        species,
+                        isDead,
+                        hasNickname: (nickname !== species),
+                        sprite: `${CONFIG.dossierSprites}${spriteFileName}.png`
+                    };
+                }).filter(p => p.isDead && p.hasNickname);
+            } catch (e) {
+                console.error("Erreur API:", e);
+                return [];
+            }
+        }
+
+        function createHTML(cemetery) {
+            const listHtml = cemetery.map(p => `
+                <div class="death-entry">
+                    <img src="${p.sprite}" class="w-9 h-9 object-contain grayscale-filter mr-1.5" onerror="this.style.display='none'">
+                    <span class="nickname-text">${p.nickname}</span>
+                </div>
+            `).join('');
+
+            return `
+                <span class="message-text">${CONFIG.messageDebut}</span>
+                ${listHtml}
+                <span class="message-text">${CONFIG.messageFin}</span>
+            `;
+        }
+
+        async function startCycle() {
+            if (isRunning) return;
+            
+            const cemetery = await fetchPokemonData();
+            if (cemetery.length === 0) {
+                setTimeout(startCycle, 10000);
+                return;
+            }
+
+            isRunning = true;
+            const wrapper = document.getElementById('cemetery-wrapper');
+            const scroll = document.getElementById('cemetery-scroll');
+
+            scroll.innerHTML = createHTML(cemetery);
+            wrapper.style.opacity = "1";
+            
+            // Animation sur mesure pour 1920px
+            scroll.style.animation = `marquee-once ${CONFIG.vitesseDefilement}s linear forwards`;
+
+            scroll.onanimationend = () => {
+                wrapper.style.opacity = "0";
+                scroll.style.animation = "none";
+                
+                setTimeout(() => {
+                    isRunning = false;
+                    setTimeout(startCycle, CONFIG.tempsAttente);
+                }, 1000);
+            };
+        }
+
+        window.onload = startCycle;
+    </script>
+</body>
+</html>
