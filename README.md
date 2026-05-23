@@ -62,6 +62,6 @@ Le serveur charge aussi le dictionnaire depuis :
 ---
 
 ![Screenshot Interface](screen/screen%20dashboard.jpg)
-![Screenshot OBS](screen/screen%obs.png)
+![Screenshot OBS](screen/screen%20obs.png)
 
 Si vous observez que certains sprites ne s’affichent pas, vérifiez que le nom/sans caractères spéciaux correspond bien au fichier PNG attendu (conversion en minuscule + suppression des caractères non alphanumériques).
