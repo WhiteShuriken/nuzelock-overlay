@@ -98,4 +98,4 @@ Si vous êtes un représentant légal des ayants droit et que vous souhaitez le 
 
 ## License
 
-Source: [NC-CL-1.0](LICENSE) | Assets: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) | [Commercial inquiries](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
