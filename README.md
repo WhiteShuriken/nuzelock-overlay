@@ -95,3 +95,7 @@ Ce projet utilise des sprites et visuels issus de la franchise de jeux vidéo **
 ### 📬 Contact & Retrait des visuels
 
 Si vous êtes un représentant légal des ayants droit et que vous souhaitez le retrait de ces sprites de ce dépôt, merci d'ouvrir une *Issue* ou de me contacter directement.
+
+## License
+
+Source: [NC-CL-1.0](LICENSE) | Assets: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) | [Commercial inquiries](LICENSE)
