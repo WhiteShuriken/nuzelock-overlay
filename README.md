@@ -22,7 +22,9 @@ Cette section décrit l’utilisation “standard” côté **dsmume / OBS**.
 Cette partie correspond à l’implémentation présente dans le dossier `Manual/`.
 
 ### 1) Prérequis
-- **Node.js** (avec `npm`)
+Pour faire tourner l'ensemble du projet, vous aurez besoin de :
+* **Node.js** (avec `npm`) pour le serveur local.
+* **Python 3** pour les scripts de traitement ou d'extraction.
 
 ### 2) Installation
 Depuis la racine du projet :
