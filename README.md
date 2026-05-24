@@ -1,3 +1,5 @@
+# nuzelock-overlay
+
 ✨ **Une overlay « Nuzlocke » dynamique pour vos streams Pokémon (Équipe, Cimetière et Boîtes PC).**
 
 > 🤖 *Ce code a été généré avec l'aide de Gemini.*
@@ -113,7 +115,7 @@ Ce projet utilise des sprites et des visuels issus de la franchise de jeux vidé
 ### ⚠️ Mentions Légales & Droits d'Auteur
 > [!IMPORTANT]
 > **Tous les droits sur ces visuels et personnages appartiennent exclusivement à leurs propriétaires respectifs.**
-> * **Propriété intellectuelle :** &amp;copy; The Pokémon Company / Nintendo / Creatures Inc. / GAME FREAK.
+> * **Propriété intellectuelle :** &copy; The Pokémon Company / Nintendo / Creatures Inc. / GAME FREAK.
 > * **Source des ressources :** Jeux vidéo officiels de la franchise *Pokémon* et extraits de la plateforme communautaire *Pokémon Showdown*.
 
 ### ℹ️ Clause de Non-Responsabilité (Disclaimer)
