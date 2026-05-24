@@ -403,8 +403,8 @@
             let spriteUrl = '';
             if (destType === 'team') {
                 spriteUrl = p.isShiny 
-                    ? `https://play.pokemonshowdown.com/sprites/ani-shiny/${spriteName}.gif`
-                    : `https://play.pokemonshowdown.com/sprites/ani/${spriteName}.gif`;
+                    ? `https://play.pokemonshowdown.com/sprites/gen5ani-shiny/${spriteName}.gif`
+                    : `https://play.pokemonshowdown.com/sprites/gen5ani/${spriteName}.gif`;
             } else {
                 spriteUrl = `/sprites/${spriteName}.png`;
             }
@@ -817,8 +817,8 @@
                 const spriteName = getSpriteString(enSpecies);
 
                 const spriteUrl = isShiny 
-                    ? `https://play.pokemonshowdown.com/sprites/ani-shiny/${spriteName}.gif`
-                    : `https://play.pokemonshowdown.com/sprites/ani/${spriteName}.gif`;
+                    ? `https://play.pokemonshowdown.com/sprites/gen5ani-shiny/${spriteName}.gif`
+                    : `https://play.pokemonshowdown.com/sprites/gen5ani/${spriteName}.gif`;
 
                 currentState.team[i] = {
                     nickname: nickname || frSpecies,
