@@ -22,7 +22,9 @@ Cette section décrit l’utilisation “standard” côté **dsmume / OBS**.
 Cette partie correspond à l’implémentation présente dans le dossier `Manual/`.
 
 ### 1) Prérequis
-- **Node.js** (avec `npm`)
+Pour faire tourner l'ensemble du projet, vous aurez besoin de :
+* **Node.js** (avec `npm`) pour le serveur local.
+* **Python 3** pour les scripts de traitement ou d'extraction.
 
 ### 2) Installation
 Depuis la racine du projet :
@@ -61,4 +63,39 @@ Le serveur charge aussi le dictionnaire depuis :
 
 ---
 
+![Screenshot Interface](screen/screen%20dashboard.jpg)
+![Screenshot OBS](screen/screen%20obs.png)
+
 Si vous observez que certains sprites ne s’affichent pas, vérifiez que le nom/sans caractères spéciaux correspond bien au fichier PNG attendu (conversion en minuscule + suppression des caractères non alphanumériques).
+
+# 🎨 Crédits & Copyright — Pokémon Sprites
+
+Ce projet utilise des sprites et visuels issus de la franchise de jeux vidéo **Pokémon**.
+
+---
+
+### ⚠️ Mentions Légales & Droits d'Auteur
+
+> [!IMPORTANT]
+> **Tous les droits sur ces visuels et personnages appartiennent exclusivement à leurs propriétaires respectifs.**
+
+* **Propriété intellectuelle :** &copy; The Pokémon Company / Nintendo / Creatures Inc. / GAME FREAK.
+* **Source des ressources :** Jeux vidéo officiels de la franchise *Pokémon*.
+
+---
+
+### ℹ️ Clause de Non-Responsabilité (Disclaimer)
+
+* **But non lucratif :** Ce projet est une initiative de fan, strictement **gratuite et non commerciale**.
+* **Usage loyal (Fair Use) :** L'utilisation de ces sprites est faite à but purement illustratif, éducatif et communautaire. Aucune violation de copyright n'est intentionnelle.
+* **Affiliation :** Ce projet n'est en aucun cas affilié, approuvé ou soutenu par *The Pokémon Company*, *Nintendo* ou leurs studios partenaires.
+
+---
+
+### 📬 Contact & Retrait des visuels
+
+Si vous êtes un représentant légal des ayants droit et que vous souhaitez le retrait de ces sprites de ce dépôt, merci d'ouvrir une *Issue* ou de me contacter directement.
+
+## License
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
