@@ -2,7 +2,7 @@
 
 ✨ **Une overlay « Nuzlocke » dynamique pour vos streams Pokémon (Équipe, Cimetière et Boîtes PC).**
 
-> 🤖 *Ce code a été généré avec l'aide de Gemini.*
+> 🤖 *Ce code a été crée et corriger avec l'aide de Gemini.*
 
 L'application propose deux approches : une intégration classique via émulateur (**DeSmuME**) et une version autonome (**Manual**) propulsée par un serveur local Node.js et synchronisée en temps réel.
 
