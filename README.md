@@ -82,6 +82,32 @@ Le serveur démarre par défaut sur `http://localhost:3000` et distribue les acc
 | **Overlay Équipe** | http://localhost:3000/team.html | À intégrer sur OBS (Équipe active) |
 | **Overlay Cimetière** | http://localhost:3000/cemetery.html | À intégrer sur OBS (Défilé des Pokémon K.O.) |
 | **Overlay Boîte PC** | http://localhost:3000/box.html | À intégrer sur OBS (Vue sur le PC) |
+| **Alerte de mort** | http://localhost:3000/alert.html | À intégrer sur OBS (1920x1080) : carte « R.I.P. » animée à chaque mort |
+| **Compteurs** | http://localhost:3000/counters.html | À intégrer sur OBS : morts, captures, badges, tentative |
+| **Télécommande** | http://localhost:3000/mobile.html | Version compacte pour téléphone ou second écran |
+
+#### Options des overlays (dans l'URL de la source OBS)
+
+| Option | Overlays | Effet |
+| :--- | :--- | :--- |
+| `scale=1.5` | tous | Agrandit / réduit l'overlay (ex : `0.75`, `2`). |
+| `layout=vertical` | `team`, `counters` | Affichage en colonne (équipe : 200x900). |
+| `level=0` | `team` | Masque le niveau. |
+| `nickname=0` | `team` | Affiche l'espèce à la place du surnom. |
+| `sprites=local` | `team`, `alert` | Utilise uniquement les sprites locaux (aucune connexion internet nécessaire). |
+| `details=0` | `cemetery` | Masque niveau et cause de la mort dans le défilé. |
+| `duration=8` | `alert` | Durée d'affichage de l'alerte en secondes. |
+| `show=deaths,badges` | `counters` | Choix et ordre des compteurs (`deaths`, `captures`, `badges`, `attempts`). |
+
+Exemple : `http://localhost:3000/team.html?layout=vertical&scale=1.2&sprites=local`
+
+#### Utilisation en live
+
+* **Capture rapide** : touche `N`, saisissez l'espèce (et éventuellement surnom, niveau, lieu de capture), puis `Entrée`. Le Pokémon va dans le premier slot libre de l'équipe, sinon du PC. Un avertissement s'affiche si le lieu de capture a déjà été utilisé.
+* **Raccourcis** : `Alt+1`…`Alt+6` envoie le slot d'équipe au cimetière (niveau prérempli, `Entrée` pour valider), `Ctrl+Z` annule, `/` recherche dans le PC, `Échap` ferme une fenêtre.
+* **Connexion** : un voyant indique si le serveur répond ; un bandeau rouge apparaît s'il est arrêté.
+* **Compteurs** : morts et captures sont calculés automatiquement, badges et tentatives se règlent avec `−` / `+`.
+* **Téléphone** : lancez le serveur avec `HOST=0.0.0.0`, puis ouvrez l'adresse affichée dans le terminal (ou dans « Raccourcis & Mobile » du dashboard).
 
 #### Variables d'environnement
 
@@ -100,7 +126,7 @@ Exemple : `HOST=0.0.0.0 PORT=4000 npm start` (sous Windows PowerShell : `$env:HO
 ### 5) Gestion des ressources locales
 * **Dossier de sprites locaux :** Servis via la route `/sprites` ➔ reliée à `Cemetery/CemeteryOverlaySprite/` (dossier partagé avec l'overlay autonome du cimetière).
 * **Sauvegarde :** L'état est enregistré automatiquement dans `Manual/state.json` et restauré au redémarrage du serveur (le navigateur du dashboard garde aussi une copie locale).
-* **Hors-ligne :** Tailwind CSS et la police Inter sont servis localement (`Manual/public/css/tailwind.css`, `Manual/public/fonts/`). Seuls les sprites animés Showdown et le secours Pokémon Database nécessitent internet.
+* **Hors-ligne :** Tailwind CSS et la police Inter sont servis localement (`Manual/public/css/tailwind.css`, `Manual/public/fonts/`). Si les sprites animés Showdown ne chargent pas (coupure internet), les overlays basculent automatiquement sur les sprites locaux (générations 1 à 7), puis sur Pokémon Database.
 
 ### 6) Développement
 ```bash
