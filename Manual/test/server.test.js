@@ -74,6 +74,13 @@ test('les sprites locaux sont servis depuis le dossier partagé', async () => {
         assert.strictEqual(ok.status, 200);
         const css = await fetch(`${URL}/css/tailwind.css`);
         assert.strictEqual(css.status, 200);
+        for (const page of ['dashboard', 'team', 'cemetery', 'box', 'alert', 'counters', 'mobile']) {
+            const res = await fetch(`${URL}/${page}.html`);
+            assert.strictEqual(res.status, 200, page);
+        }
+        const { socket, data } = await connect();
+        assert.deepStrictEqual(data.info.mobileUrls, []);
+        socket.close();
     } finally {
         await stopServer(proc);
     }

@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { loadPokemonDict } = require('./lib/csv');
 const { isValidState, loadState, createStateSaver } = require('./lib/state');
@@ -36,6 +37,14 @@ try {
     console.error("Erreur critique lors de la lecture du dictionnaire CSV :", e);
 }
 
+// Adresses à ouvrir depuis un téléphone (seulement si le serveur est ouvert au réseau local)
+function getMobileUrls() {
+    if (HOST !== '0.0.0.0' && HOST !== '::') return [];
+    return Object.values(os.networkInterfaces()).flat()
+        .filter(i => i && i.family === 'IPv4' && !i.internal)
+        .map(i => `http://${i.address}:${PORT}/mobile.html`);
+}
+
 // État de l'application, restauré depuis le disque au démarrage
 let appState = loadState(STATE_FILE);
 const stateSaver = createStateSaver(STATE_FILE);
@@ -45,7 +54,7 @@ io.on('connection', (socket) => {
     console.log('Un utilisateur s\'est connecté au serveur.');
 
     // Envoi des données courantes au nouveau client connecté
-    socket.emit('init', { state: appState, dict: pokemonDict });
+    socket.emit('init', { state: appState, dict: pokemonDict, info: { mobileUrls: getMobileUrls() } });
 
     // Réception d'une mise à jour depuis le Dashboard
     socket.on('update_state', (newState) => {
@@ -83,6 +92,10 @@ server.listen(PORT, HOST, () => {
     console.log(`📺 Overlay Équipe  : http://${displayHost}:${PORT}/team.html`);
     console.log(`📺 Overlay Cimetière: http://${displayHost}:${PORT}/cemetery.html`);
     console.log(`📺 Overlay Boîte PC: http://${displayHost}:${PORT}/box.html`);
+    console.log(`📺 Alerte de mort  : http://${displayHost}:${PORT}/alert.html`);
+    console.log(`📺 Compteurs       : http://${displayHost}:${PORT}/counters.html`);
+    console.log(`📱 Mobile          : http://${displayHost}:${PORT}/mobile.html`);
+    for (const url of getMobileUrls()) console.log(`📱 Depuis le réseau : ${url}`);
     console.log(`💾 Sauvegarde      : ${STATE_FILE}`);
     console.log('===================================================');
 });
