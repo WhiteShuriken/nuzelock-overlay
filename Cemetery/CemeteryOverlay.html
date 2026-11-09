@@ -97,6 +97,20 @@
 
         let isRunning = false;
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function getSpriteString(name) {
+            if (!name) return '';
+            return name.toLowerCase()
+                .replace(/♀/g, '-f').replace(/♂/g, '-m')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[.'’:]/g, '')
+                .trim().replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+        }
+
         async function fetchPokemonData() {
             try {
                 const res = await fetch(CONFIG.apiUrl);
@@ -117,7 +131,7 @@
                     }
 
                     const isDead = block.toLowerCase().includes('dead: yes');
-                    const spriteFileName = species.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const spriteFileName = getSpriteString(species);
 
                     return {
                         nickname,
@@ -136,8 +150,8 @@
         function createHTML(cemetery) {
             const listHtml = cemetery.map(p => `
                 <div class="death-entry">
-                    <img src="${p.sprite}" class="w-9 h-9 object-contain grayscale-filter mr-1.5" onerror="this.style.display='none'">
-                    <span class="nickname-text">${p.nickname}</span>
+                    <img src="${escapeHtml(p.sprite)}" class="w-9 h-9 object-contain grayscale-filter mr-1.5" onerror="this.style.display='none'">
+                    <span class="nickname-text">${escapeHtml(p.nickname)}</span>
                 </div>
             `).join('');
 
@@ -167,7 +181,12 @@
             // Animation sur mesure pour 1920px
             scroll.style.animation = `marquee-once ${CONFIG.vitesseDefilement}s linear forwards`;
 
-            scroll.onanimationend = () => {
+            let fallbackTimer;
+            let cycleEnded = false;
+            const onCycleEnd = () => {
+                if (cycleEnded) return; // Sécurité anti-doublon
+                cycleEnded = true;
+                clearTimeout(fallbackTimer);
                 wrapper.style.opacity = "0";
                 scroll.style.animation = "none";
                 
@@ -176,6 +195,10 @@
                     setTimeout(startCycle, CONFIG.tempsAttente);
                 }, 1000);
             };
+
+            scroll.onanimationend = onCycleEnd;
+            // Sécurité si l'événement animationend n'est jamais reçu (onglet OBS en arrière-plan, etc.)
+            fallbackTimer = setTimeout(onCycleEnd, (CONFIG.vitesseDefilement * 1000) + 1500);
         }
 
         window.onload = startCycle;

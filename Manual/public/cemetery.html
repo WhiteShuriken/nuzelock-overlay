@@ -101,6 +101,10 @@
     <script>
         const socket = io();
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
         const CONFIG = {
             messageDebut: "Ils nous ont quittés :",
             messageFin: "— Reposez en paix.",
@@ -134,26 +138,26 @@
                 let detailsText = '';
                 if (p.level || p.deathCause) {
                     detailsText = ' (';
-                    if (p.level) detailsText += `Niv.${p.level}`;
+                    if (p.level) detailsText += `Niv.${escapeHtml(p.level)}`;
                     if (p.level && p.deathCause) detailsText += ' — ';
-                    if (p.deathCause) detailsText += `${p.deathCause}`;
+                    if (p.deathCause) detailsText += escapeHtml(p.deathCause);
                     detailsText += ')';
                 }
 
                 // Hauteur verrouillée à 46px maximum (avec max-h et h) pour empêcher tout débordement de la zone de 70px
                 return `
                     <div class="death-entry">
-                        <img src="${p.sprite}" class="max-h-[46px] h-[46px] w-auto object-contain grayscale-filter mr-2" onerror="this.style.display='none'">
-                        <span class="nickname-text">${p.nickname}</span>
+                        <img src="${escapeHtml(p.sprite)}" class="max-h-[46px] h-[46px] w-auto object-contain grayscale-filter mr-2" onerror="this.style.display='none'">
+                        <span class="nickname-text">${escapeHtml(p.nickname)}</span>
                         ${detailsText ? `<span class="details-badge">${detailsText}</span>` : ''}
                     </div>
                 `;
             }).join('');
 
             return `
-                <span class="message-text">${CONFIG.messageDebut}</span>
+                <span class="message-text">${escapeHtml(CONFIG.messageDebut)}</span>
                 ${listHtml}
-                <span class="message-text">${CONFIG.messageFin}</span>
+                <span class="message-text">${escapeHtml(CONFIG.messageFin)}</span>
             `;
         }
 
@@ -175,9 +179,11 @@
             scroll.style.animation = `marquee-once ${CONFIG.vitesseDefilement}s linear forwards`;
 
             let fallbackTimer;
+            let cycleEnded = false;
 
             const onCycleEnd = () => {
-                if (!isRunning) return; // Sécurité anti-doublon
+                if (cycleEnded) return; // Sécurité anti-doublon
+                cycleEnded = true;
                 clearTimeout(fallbackTimer);
                 
                 wrapper.style.opacity = "0";

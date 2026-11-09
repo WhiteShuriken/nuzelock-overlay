@@ -167,6 +167,20 @@
             fallbackUrl: "https://img.pokemondb.net/sprites/home/normal"
         };
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function getSpriteString(name) {
+            if (!name) return '';
+            return name.toLowerCase()
+                .replace(/♀/g, '-f').replace(/♂/g, '-m')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[.'’:]/g, '')
+                .trim().replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+        }
+
         async function fetchTeamData() {
             try {
                 const res = await fetch(CONFIG.apiUrl);
@@ -206,14 +220,14 @@
                     }
 
                     const isDead = block.toLowerCase().includes('dead: yes');
-                    const spriteName = species.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const spriteName = getSpriteString(species);
 
                     return {
                         nickname,
                         species,
                         gender,
                         isDead,
-                        sprite: `${CONFIG.showdownUrl}/${spriteName}.gif`,
+                        sprite: `${CONFIG.showdownUrl}/${spriteName.replace(/-/g, '')}.gif`,
                         fallback: `${CONFIG.fallbackUrl}/${spriteName}.png`
                     };
                 }).filter(p => !p.isDead).slice(0, 6);
@@ -244,13 +258,14 @@
                 <div class="sprite-container fade-in">
                     <div class="poke-platform"></div>
                     <div class="poke-glow"></div>
-                    <img src="${pokemon.sprite}" 
-                         alt="${pokemon.species}" 
+                    <img src="${escapeHtml(pokemon.sprite)}" 
+                         alt="${escapeHtml(pokemon.species)}" 
                          class="pokemon-sprite" 
-                         onerror="this.src='${pokemon.fallback}'">
+                         data-fallback="${escapeHtml(pokemon.fallback)}"
+                         onerror="this.onerror=null; this.src=this.dataset.fallback;">
                 </div>
                 <div class="info-container fade-in">
-                    <span class="nickname-text">${pokemon.nickname}</span>
+                    <span class="nickname-text">${escapeHtml(pokemon.nickname)}</span>
                     ${genderHtml}
                 </div>
             `;

@@ -162,6 +162,10 @@
     <script>
         const socket = io();
 
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
         function updateSlot(index, pokemon) {
             const slot = document.getElementById(`slot-${index}`);
             
@@ -183,13 +187,14 @@
                 <div class="sprite-container fade-in">
                     <div class="poke-platform"></div>
                     <div class="poke-glow" style="background: radial-gradient(circle, ${pokemon.isShiny ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.3)'} 0%, rgba(255,255,255,0) 70%)"></div>
-                    <img src="${pokemon.sprite}" 
-                         alt="${pokemon.frSpecies}" 
+                    <img src="${escapeHtml(pokemon.sprite)}" 
+                         alt="${escapeHtml(pokemon.frSpecies)}" 
                          class="pokemon-sprite" 
-                         onerror="this.src='${pokemon.fallback}'; this.onerror=null;">
+                         data-fallback="${escapeHtml(pokemon.fallback)}"
+                         onerror="this.onerror=null; if (this.dataset.fallback) this.src=this.dataset.fallback;">
                 </div>
                 <div class="info-container fade-in">
-                    <span class="nickname-text">${pokemon.nickname}</span>
+                    <span class="nickname-text">${escapeHtml(pokemon.nickname)}</span>
                     ${genderHtml}
                 </div>
             `;

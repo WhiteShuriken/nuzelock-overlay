@@ -244,22 +244,28 @@
 
     <script>
         const socket = io();
+        const DEFAULT_CONFIG = Object.freeze({
+            cemeterySpeed: 18,
+            cemeteryPause: 45000,
+            cemeteryStartText: "Ils nous ont quittés :",
+            cemeteryEndText: "— Reposez en paix.",
+            boxSlideDuration: 0.5,
+            boxCycleDuration: 5,
+            autoSyncInterval: 0
+        });
+
+        function createEmptyState() {
+            return {
+                team: Array(6).fill(null),
+                boxes: [Array(30).fill(null)],
+                currentBoxIndex: 0,
+                cemetery: [],
+                config: { ...DEFAULT_CONFIG }
+            };
+        }
+
         let pokemonDict = [];
-        let currentState = { 
-            team: Array(6).fill(null), 
-            boxes: [Array(30).fill(null)], 
-            currentBoxIndex: 0,
-            cemetery: [],
-            config: {
-                cemeterySpeed: 18,
-                cemeteryPause: 45000,
-                cemeteryStartText: "Ils nous ont quittés :",
-                cemeteryEndText: "— Reposez en paix.",
-                boxSlideDuration: 0.5,
-                boxCycleDuration: 5,
-                autoSyncInterval: 0
-            }
-        };
+        let currentState = createEmptyState();
         let selectedBoxIndex = null; 
         let pendingDeathData = null; 
         let autoSyncTimer = null;
@@ -306,9 +312,28 @@
             return found ? found.en : frName; 
         }
 
+        // Nom de fichier des sprites locaux et de Pokémon Database (ex : "Mr. Mime" -> "mr-mime", "Nidoran♀" -> "nidoran-f")
         function getSpriteString(enName) {
             if (!enName) return '';
-            return enName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return enName.toLowerCase()
+                .replace(/♀/g, '-f').replace(/♂/g, '-m')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[.'’:]/g, '')
+                .trim().replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+        }
+
+        // Identifiant Pokémon Showdown (ex : "Mr. Mime" -> "mrmime", "Nidoran♀" -> "nidoranf")
+        function getShowdownSlug(enName) {
+            return getSpriteString(enName).replace(/-/g, '');
+        }
+
+        function getShowdownSpriteUrl(enName, isShiny) {
+            return `https://play.pokemonshowdown.com/sprites/${isShiny ? 'gen5ani-shiny' : 'gen5ani'}/${getShowdownSlug(enName)}.gif`;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
         function showToast(message, type = 'success') {
@@ -402,9 +427,7 @@
             
             let spriteUrl = '';
             if (destType === 'team') {
-                spriteUrl = p.isShiny 
-                    ? `https://play.pokemonshowdown.com/sprites/gen5ani-shiny/${spriteName}.gif`
-                    : `https://play.pokemonshowdown.com/sprites/gen5ani/${spriteName}.gif`;
+                spriteUrl = getShowdownSpriteUrl(cleanEnSpecies, p.isShiny);
             } else {
                 spriteUrl = `/sprites/${spriteName}.png`;
             }
@@ -487,7 +510,7 @@
                 else if (sourceType === 'box') sourcePokemon = currentState.boxes[currentState.currentBoxIndex][sourceIndex];
 
                 if (sourcePokemon) {
-                    openDeathModal(sourcePokemon.nickname, { type: sourceType, index: sourceIndex });
+                    openDeathModal(sourcePokemon.nickname, { type: sourceType === 'box' ? 'pc' : sourceType, index: sourceIndex });
                 }
             } catch (err) {
                 console.error("Erreur Drag&Drop Cimetière :", err);
@@ -497,15 +520,7 @@
 
         // --- MODAL DE CONFIG ---
         function openConfigModal() {
-            const config = currentState.config || {
-                cemeterySpeed: 18,
-                cemeteryPause: 45000,
-                cemeteryStartText: "Ils nous ont quittés :",
-                cemeteryEndText: "— Reposez en paix.",
-                boxSlideDuration: 0.5,
-                boxCycleDuration: 5,
-                autoSyncInterval: 0
-            };
+            const config = { ...DEFAULT_CONFIG, ...currentState.config };
             
             document.getElementById('cfg-cem-speed').value = config.cemeterySpeed;
             document.getElementById('cfg-cem-pause').value = config.cemeteryPause;
@@ -532,13 +547,13 @@
 
         function saveConfig() {
             currentState.config = {
-                cemeterySpeed: Number(document.getElementById('cfg-cem-speed').value) || 18,
-                cemeteryPause: Number(document.getElementById('cfg-cem-pause').value) || 45000,
-                cemeteryStartText: document.getElementById('cfg-cem-start').value.trim() || "Ils nous ont quittés :",
-                cemeteryEndText: document.getElementById('cfg-cem-end').value.trim() || "— Reposez en paix.",
-                boxSlideDuration: Number(document.getElementById('cfg-box-slide').value) || 0.5,
-                boxCycleDuration: Number(document.getElementById('cfg-box-cycle').value) || 5,
-                autoSyncInterval: Number(document.getElementById('cfg-auto-sync').value) || 0
+                cemeterySpeed: Number(document.getElementById('cfg-cem-speed').value) || DEFAULT_CONFIG.cemeterySpeed,
+                cemeteryPause: Number(document.getElementById('cfg-cem-pause').value) || DEFAULT_CONFIG.cemeteryPause,
+                cemeteryStartText: document.getElementById('cfg-cem-start').value.trim() || DEFAULT_CONFIG.cemeteryStartText,
+                cemeteryEndText: document.getElementById('cfg-cem-end').value.trim() || DEFAULT_CONFIG.cemeteryEndText,
+                boxSlideDuration: Number(document.getElementById('cfg-box-slide').value) || DEFAULT_CONFIG.boxSlideDuration,
+                boxCycleDuration: Number(document.getElementById('cfg-box-cycle').value) || DEFAULT_CONFIG.boxCycleDuration,
+                autoSyncInterval: Number(document.getElementById('cfg-auto-sync').value) || DEFAULT_CONFIG.autoSyncInterval
             };
             
             saveToLocalStorage();
@@ -556,16 +571,10 @@
 
         function updateQuickCemeteryTexts() {
             if (!currentState.config) {
-                currentState.config = {
-                    cemeterySpeed: 18,
-                    cemeteryPause: 45000,
-                    boxSlideDuration: 0.5,
-                    boxCycleDuration: 5,
-                    autoSyncInterval: 0
-                };
+                currentState.config = { ...DEFAULT_CONFIG };
             }
-            currentState.config.cemeteryStartText = document.getElementById('quick-cem-start').value.trim() || "Ils nous ont quittés :";
-            currentState.config.cemeteryEndText = document.getElementById('quick-cem-end').value.trim() || "— Reposez en paix.";
+            currentState.config.cemeteryStartText = document.getElementById('quick-cem-start').value.trim() || DEFAULT_CONFIG.cemeteryStartText;
+            currentState.config.cemeteryEndText = document.getElementById('quick-cem-end').value.trim() || DEFAULT_CONFIG.cemeteryEndText;
             
             saveToLocalStorage();
             socket.emit('update_state', currentState);
@@ -583,15 +592,7 @@
                 currentState.currentBoxIndex = 0;
             }
             if (!currentState.config) {
-                currentState.config = {
-                    cemeterySpeed: 18,
-                    cemeteryPause: 45000,
-                    cemeteryStartText: "Ils nous ont quittés :",
-                    cemeteryEndText: "— Reposez en paix.",
-                    boxSlideDuration: 0.5,
-                    boxCycleDuration: 5,
-                    autoSyncInterval: 0
-                };
+                currentState.config = { ...DEFAULT_CONFIG };
             }
 
             const serverStateIsEmpty = !data.state.team.some(p => p !== null) && 
@@ -701,10 +702,10 @@
             resultsDiv.innerHTML = matches.slice(0, 5).map(m => `
                 <button onclick="goToSearchResult(${m.boxIndex}, ${m.slotIndex})" class="w-full text-left px-4 py-2 text-xs hover:bg-sky-600 hover:text-white transition-colors flex items-center justify-between border-b border-gray-800 last:border-0">
                     <div class="flex items-center gap-2">
-                        <img src="${m.pokemon.sprite}" class="w-6 h-6 object-contain" onerror="this.src='https://img.pokemondb.net/sprites/home/normal/${getSpriteString(m.pokemon.enSpecies)}.png'; this.onerror=null;">
+                        <img src="${escapeHtml(m.pokemon.sprite)}" class="w-6 h-6 object-contain" onerror="this.src='https://img.pokemondb.net/sprites/home/normal/${getSpriteString(m.pokemon.enSpecies)}.png'; this.onerror=null;">
                         <div>
-                            <span class="font-bold text-sky-400">${m.pokemon.nickname}</span>
-                            <span class="text-gray-400 font-normal">(${m.pokemon.frSpecies})</span>
+                            <span class="font-bold text-sky-400">${escapeHtml(m.pokemon.nickname)}</span>
+                            <span class="text-gray-400 font-normal">(${escapeHtml(m.pokemon.frSpecies)})</span>
                         </div>
                     </div>
                     <span class="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-bold uppercase">Boîte ${m.boxIndex + 1}</span>
@@ -753,8 +754,8 @@
                         <button onclick="clearTeamSlot(${i})" class="text-xs bg-gray-600 hover:bg-red-500 text-white px-2 py-1 rounded transition-colors" title="Vider le slot">🗑️</button>
                     </div>
                     <span class="text-xs text-gray-400 font-bold mb-1 block font-mono text-center">Slot ${i + 1}</span>
-                    <input type="text" id="t-nick-${i}" placeholder="Surnom" value="${p ? p.nickname : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded mb-1.5 border border-gray-600 text-sm focus:border-blue-500 outline-none" onchange="autoFillTeamSpecies(${i})">
-                    <input type="text" id="t-spec-${i}" list="pokemon-list" placeholder="Espèce (Français)" value="${p ? p.frSpecies : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded mb-2 border border-gray-600 text-sm focus:border-blue-500 outline-none" onchange="updateTeamStateFromUI()">
+                    <input type="text" id="t-nick-${i}" placeholder="Surnom" value="${p ? escapeHtml(p.nickname) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded mb-1.5 border border-gray-600 text-sm focus:border-blue-500 outline-none" onchange="autoFillTeamSpecies(${i})">
+                    <input type="text" id="t-spec-${i}" list="pokemon-list" placeholder="Espèce (Français)" value="${p ? escapeHtml(p.frSpecies) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded mb-2 border border-gray-600 text-sm focus:border-blue-500 outline-none" onchange="updateTeamStateFromUI()">
                     
                     <div class="flex items-center justify-between mt-1">
                         <div class="flex gap-2">
@@ -816,9 +817,7 @@
                 const enSpecies = getEnName(frSpecies || nickname);
                 const spriteName = getSpriteString(enSpecies);
 
-                const spriteUrl = isShiny 
-                    ? `https://play.pokemonshowdown.com/sprites/gen5ani-shiny/${spriteName}.gif`
-                    : `https://play.pokemonshowdown.com/sprites/gen5ani/${spriteName}.gif`;
+                const spriteUrl = getShowdownSpriteUrl(enSpecies, isShiny);
 
                 currentState.team[i] = {
                     nickname: nickname || frSpecies,
@@ -886,6 +885,9 @@
                 currentState.cemetery.push({
                     nickname: targetPokemon.nickname,
                     frSpecies: targetPokemon.frSpecies,
+                    enSpecies: targetPokemon.enSpecies,
+                    gender: targetPokemon.gender || 'None',
+                    isShiny: Boolean(targetPokemon.isShiny),
                     sprite: `/sprites/${spriteName}.png`,
                     level: level || null,
                     deathCause: cause || null
@@ -979,7 +981,7 @@
                 if (p) {
                     button.innerHTML = `
                         ${p.isShiny ? '<span class="absolute text-[8px] top-0.5 right-0.5 text-yellow-400 drop-shadow-[0_1px_1px_rgba(0,0,0,1)] z-10 select-none">★</span>' : ''}
-                        <img src="${p.sprite}" class="w-8 h-8 object-contain" onerror="this.src='https://img.pokemondb.net/sprites/home/normal/${getSpriteString(p.enSpecies)}.png'; this.onerror=null;">
+                        <img src="${escapeHtml(p.sprite)}" class="w-8 h-8 object-contain" onerror="this.src='https://img.pokemondb.net/sprites/home/normal/${getSpriteString(p.enSpecies)}.png'; this.onerror=null;">
                     `;
                 } else {
                     button.innerHTML = `<span class="text-xs font-mono">+</span>`;
@@ -1087,11 +1089,11 @@
                 <div class="space-y-2">
                     <div>
                         <label class="block text-xs text-gray-400 mb-0.5">Surnom</label>
-                        <input type="text" id="b-nick" placeholder="Ex: Bulbizarre" value="${p ? p.nickname : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-blue-500 outline-none">
+                        <input type="text" id="b-nick" placeholder="Ex: Bulbizarre" value="${p ? escapeHtml(p.nickname) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-blue-500 outline-none">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-400 mb-0.5">Espèce (Français)</label>
-                        <input type="text" id="b-spec" list="pokemon-list" placeholder="Ex: Bulbizarre" value="${p ? p.frSpecies : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-blue-500 outline-none">
+                        <input type="text" id="b-spec" list="pokemon-list" placeholder="Ex: Bulbizarre" value="${p ? escapeHtml(p.frSpecies) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-blue-500 outline-none">
                     </div>
                     
                     <div class="flex items-center justify-between py-1 bg-gray-800/40 p-2 rounded border border-gray-700/30">
@@ -1193,19 +1195,19 @@
                 let detailsText = '';
                 if (p.level || p.deathCause) {
                     detailsText = `<div class="text-[10px] text-gray-400 italic font-medium mt-0.5">`;
-                    if (p.level) detailsText += `Niv. ${p.level}`;
+                    if (p.level) detailsText += `Niv. ${escapeHtml(p.level)}`;
                     if (p.level && p.deathCause) detailsText += ` — `;
-                    if (p.deathCause) detailsText += `${p.deathCause}`;
+                    if (p.deathCause) detailsText += escapeHtml(p.deathCause);
                     detailsText += `</div>`;
                 }
 
                 div.innerHTML = `
                     <div class="flex items-center">
-                        <img src="${p.sprite}" class="w-8 h-8 object-contain mr-3 filter grayscale" onerror="this.style.display='none'">
+                        <img src="${escapeHtml(p.sprite)}" class="w-8 h-8 object-contain mr-3 filter grayscale" onerror="this.style.display='none'">
                         <div>
                             <div class="font-bold text-red-400 text-sm flex items-center gap-1.5">
-                                ${p.nickname} 
-                                <span class="text-[10px] text-gray-500 font-normal">(${p.frSpecies})</span>
+                                ${escapeHtml(p.nickname)}
+                                <span class="text-[10px] text-gray-500 font-normal">(${escapeHtml(p.frSpecies)})</span>
                             </div>
                             ${detailsText}
                         </div>
@@ -1220,7 +1222,6 @@
         }
 
         function resurrectToPC(index) {
-            saveStateToHistory(); 
             const p = currentState.cemetery[index];
             if (!p) return;
 
@@ -1230,15 +1231,16 @@
                 return;
             }
 
-            const enSpecies = getEnName(p.frSpecies || p.nickname);
+            saveStateToHistory();
+            const enSpecies = p.enSpecies || getEnName(p.frSpecies || p.nickname);
             const spriteName = getSpriteString(enSpecies);
 
             currentState.boxes[currentState.currentBoxIndex][emptyBoxIndex] = {
                 nickname: p.nickname,
                 frSpecies: p.frSpecies || p.nickname,
                 enSpecies: enSpecies,
-                gender: "None",
-                isShiny: false,
+                gender: ['M', 'F'].includes(p.gender) ? p.gender : 'None',
+                isShiny: Boolean(p.isShiny),
                 sprite: `/sprites/${spriteName}.png`
             };
 
@@ -1295,7 +1297,7 @@
         }
 
         function sanitizeImportedState(imported) {
-            const safeState = { team: Array(6).fill(null), boxes: [Array(30).fill(null)], currentBoxIndex: 0, cemetery: [], config: {} };
+            const safeState = createEmptyState();
             
             if (Array.isArray(imported.team)) {
                 safeState.team = imported.team.map(p => sanitizePokemon(p)).slice(0, 6);
@@ -1325,14 +1327,15 @@
 
             safeState.currentBoxIndex = typeof imported.currentBoxIndex === 'number' ? Math.max(0, Math.min(imported.currentBoxIndex, safeState.boxes.length - 1)) : 0;
             
+            const importedConfig = imported.config || {};
             safeState.config = {
-                cemeterySpeed: Number(imported.config?.cemeterySpeed) || 18,
-                cemeteryPause: Number(imported.config?.cemeteryPause) || 45000,
-                cemeteryStartText: String(imported.config?.cemeteryStartText || "Ils nous ont quittés :"),
-                cemeteryEndText: String(imported.config?.cemeteryEndText || "— Reposez en paix."),
-                boxSlideDuration: Number(imported.config?.boxSlideDuration) || 0.5,
-                boxCycleDuration: Number(imported.config?.boxCycleDuration) || 5,
-                autoSyncInterval: Number(imported.config?.autoSyncInterval) || 0
+                cemeterySpeed: Number(importedConfig.cemeterySpeed) || DEFAULT_CONFIG.cemeterySpeed,
+                cemeteryPause: Number(importedConfig.cemeteryPause) || DEFAULT_CONFIG.cemeteryPause,
+                cemeteryStartText: String(importedConfig.cemeteryStartText || DEFAULT_CONFIG.cemeteryStartText),
+                cemeteryEndText: String(importedConfig.cemeteryEndText || DEFAULT_CONFIG.cemeteryEndText),
+                boxSlideDuration: Number(importedConfig.boxSlideDuration) || DEFAULT_CONFIG.boxSlideDuration,
+                boxCycleDuration: Number(importedConfig.boxCycleDuration) || DEFAULT_CONFIG.boxCycleDuration,
+                autoSyncInterval: Number(importedConfig.autoSyncInterval) || DEFAULT_CONFIG.autoSyncInterval
             };
 
             return safeState;
@@ -1384,21 +1387,7 @@
                 
                 saveStateToHistory(); 
                 
-                currentState = { 
-                    team: Array(6).fill(null), 
-                    boxes: [Array(30).fill(null)], 
-                    currentBoxIndex: 0, 
-                    cemetery: [],
-                    config: {
-                        cemeterySpeed: 18,
-                        cemeteryPause: 45000,
-                        cemeteryStartText: "Ils nous ont quittés :",
-                        cemeteryEndText: "— Reposez en paix.",
-                        boxSlideDuration: 0.5,
-                        boxCycleDuration: 5,
-                        autoSyncInterval: 0
-                    }
-                };
+                currentState = createEmptyState();
                 selectedBoxIndex = null;
                 saveToLocalStorage();
                 socket.emit('update_state', currentState);

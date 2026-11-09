@@ -136,10 +136,25 @@
 
     <script>
         const socket = io();
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function getSpriteString(name) {
+            if (!name) return '';
+            return name.toLowerCase()
+                .replace(/♀/g, '-f').replace(/♂/g, '-m')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[.'’:]/g, '')
+                .trim().replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+        }
         
         let latestState = null;
         let currentDisplayBoxIndex = 0; 
         let cycleInterval = null;
+        let cycleIntervalSec = null;
         let isTransitioning = false;
 
         function initGrid() {
@@ -179,13 +194,12 @@
                 slotDiv.setAttribute('data-id', pkmnId);
 
                 const enSpecies = pokemon.enSpecies || pokemon.frSpecies || '';
-                const spriteNameClean = enSpecies.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const fallbackUrl = `https://img.pokemondb.net/sprites/home/normal/${spriteNameClean}.png`;
+                const fallbackUrl = `https://img.pokemondb.net/sprites/home/normal/${getSpriteString(enSpecies)}.png`;
 
                 slotDiv.innerHTML = `
                     ${pokemon.isShiny ? '<span class="shiny-star">★</span>' : ''}
-                    <img src="${pokemon.sprite}" 
-                         alt="${pokemon.frSpecies || ''}" 
+                    <img src="${escapeHtml(pokemon.sprite)}" 
+                         alt="${escapeHtml(pokemon.frSpecies)}" 
                          class="pc-sprite fade-in" 
                          onerror="this.src='${fallbackUrl}'; this.onerror=null;">
                 `;
@@ -223,14 +237,14 @@
         }
 
         function startCycleTimer() {
-            if (cycleInterval) {
-                clearInterval(cycleInterval);
-                cycleInterval = null;
-            }
-
             if (!latestState || !latestState.config) return;
             const config = latestState.config;
             const cycleDurationSec = config.boxCycleDuration !== undefined ? config.boxCycleDuration : 5;
+
+            // Ne relance pas le minuteur à chaque synchro, sinon la rotation n'a jamais le temps de se déclencher
+            if (cycleInterval && cycleIntervalSec === cycleDurationSec) return;
+            if (cycleInterval) clearInterval(cycleInterval);
+            cycleIntervalSec = cycleDurationSec;
 
             cycleInterval = setInterval(() => {
                 triggerNextBox();
