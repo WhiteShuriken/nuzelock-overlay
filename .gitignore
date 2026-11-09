@@ -1,2 +1,4 @@
 node_modules/
 .DS_Store
+Manual/state.json
+Manual/state.json.tmp
