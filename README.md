@@ -61,7 +61,6 @@ Cette partie correspond à l’implémentation autonome présente dans le dossie
 ### 1) Prérequis
 Pour faire tourner l'ensemble du projet, vous aurez besoin de :
 * **Node.js** (avec `npm`) pour exécuter le serveur local.
-* **Python 3** pour les scripts de traitement ou d'extraction de données.
 
 ### 2) Installation
 Ouvrez votre terminal, déplacez-vous à la racine du projet et exécutez les commandes suivantes :
@@ -75,7 +74,7 @@ npm install
 npm start
 ```
 
-Le serveur démarre par défaut sur le port **3000** et distribue les accès suivants :
+Le serveur démarre par défaut sur le port **3000** (modifiable via la variable d'environnement `PORT`, ex : `PORT=4000 npm start`) et distribue les accès suivants :
 
 | Interface | URL Locale | Usages |
 | :--- | :--- | :--- |
@@ -104,7 +103,7 @@ Voici un aperçu de l'interface d'administration et du rendu final sous OBS :
 ### Rendu final configuré sur OBS
 ![Screenshot OBS](screen/screen%20obs.png)
 
-> 🔧 **Dépannage des sprites :** Si certains sprites locaux ne s’affichent pas, vérifiez que leur nom de fichier ne contient aucun caractère spécial (lettres accentuées, espaces). Le script applique une conversion en minuscules et supprime tous les caractères non alphanumériques.
+> 🔧 **Dépannage des sprites :** Si certains sprites locaux ne s’affichent pas, vérifiez que leur nom de fichier ne contient aucun caractère spécial (lettres accentuées, espaces). Le script convertit le nom anglais en minuscules, retire les accents et la ponctuation, et remplace les espaces par des tirets (ex : `Mr. Mime` ➔ `mr-mime.png`, `Nidoran♀` ➔ `nidoran-f.png`).
 
 ---
 
