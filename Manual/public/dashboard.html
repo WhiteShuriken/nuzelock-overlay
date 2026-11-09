@@ -25,15 +25,25 @@
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6 font-sans">
+    <div id="conn-banner" class="hidden fixed top-0 inset-x-0 z-50 bg-red-600 text-white text-center font-bold py-2 shadow-lg">
+        ⚠️ Serveur déconnecté : les changements n'arrivent plus sur OBS. Vérifiez que « npm start » tourne toujours.
+    </div>
     
     <div class="max-w-7xl mx-auto">
         <header class="flex flex-col md:flex-row justify-between items-center mb-8 pb-4 border-b border-gray-700 gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-blue-400">🎮 Contrôleur Nuzlocke (Manuel)</h1>
-                <p class="text-xs text-gray-400 mt-1">Vos données sont sauvegardées automatiquement dans votre navigateur.</p>
+                <p class="text-xs text-gray-400 mt-1">Chaque modification part instantanément sur OBS et est sauvegardée automatiquement (serveur + navigateur).</p>
+                <div id="conn-status" class="inline-flex items-center gap-1.5 text-xs font-bold mt-2 px-2.5 py-1 rounded-full bg-gray-800 border border-gray-700" title="État de la connexion au serveur">
+                    <span id="conn-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>
+                    <span id="conn-label">Connexion au serveur…</span>
+                </div>
             </div>
             
             <div class="flex flex-wrap items-center gap-2">
+                <button onclick="toggleHelpPanel()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition-all" title="Raccourcis clavier et pilotage depuis un téléphone">
+                    ⌨️ Raccourcis &amp; 📱 Mobile
+                </button>
                 <button onclick="openConfigModal()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition-all flex items-center gap-1.5" title="Configurer la vitesse de défilement, l'animation PC, etc.">
                     ⚙️ Configuration
                 </button>
@@ -51,14 +61,30 @@
                 <button onclick="clearAllData(this)" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition-all" title="Réinitialiser l'équipe active, les PC et le cimetière">
                     ⚠️ Tout réinitialiser
                 </button>
-                <button onclick="pushUpdate()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-transform transform hover:scale-105 ml-2 relative">
-                    <span id="auto-sync-dot" class="absolute top-1 right-1 w-2.5 h-2.5 bg-sky-400 rounded-full hidden animate-pulse" title="Mise à jour automatique active"></span>
-                    📡 Mettre à jour OBS
-                </button>
             </div>
         </header>
 
+        <div id="help-panel" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 text-sm">
+                <h3 class="font-bold text-sky-400 mb-2">⌨️ Raccourcis clavier</h3>
+                <ul class="space-y-1 text-gray-300">
+                    <li><kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">N</kbd> Capture rapide</li>
+                    <li><kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">/</kbd> Rechercher dans le PC</li>
+                    <li><kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">Alt</kbd> + <kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">1</kbd>…<kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">6</kbd> Envoyer le slot d'équipe au cimetière</li>
+                    <li><kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">Ctrl</kbd> + <kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">Z</kbd> Annuler la dernière action (hors champ de saisie)</li>
+                    <li><kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">Entrée</kbd> / <kbd class="bg-gray-900 px-1.5 rounded border border-gray-600">Échap</kbd> Valider / fermer une fenêtre</li>
+                </ul>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 text-sm">
+                <h3 class="font-bold text-green-400 mb-2">📱 Piloter depuis un téléphone</h3>
+                <div id="mobile-info" class="text-gray-300 space-y-1"></div>
+            </div>
+        </div>
+
+        <div id="counters-bar" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+
         <datalist id="pokemon-list"></datalist>
+        <datalist id="route-list"></datalist>
 
         <!-- GRILLE PRINCIPALE DU DASHBOARD -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -69,6 +95,24 @@
                     <span>Mon Équipe Active</span>
                     <span class="text-xs text-gray-400 font-normal">Mise à jour automatique</span>
                 </h2>
+                <form id="quick-capture" onsubmit="quickCapture(event)" class="bg-gray-900/60 p-3 rounded-lg border border-green-500/30 mb-4">
+                    <h3 class="text-xs font-bold text-green-400 mb-2">⚡ Capture rapide <span class="text-gray-500 font-normal">— touche N, puis Entrée : premier slot libre (équipe, sinon PC)</span></h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="q-spec" list="pokemon-list" placeholder="Espèce (Français)" autocomplete="off" class="bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-green-500 outline-none">
+                        <input type="text" id="q-nick" placeholder="Surnom (optionnel)" autocomplete="off" class="bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-green-500 outline-none">
+                        <input type="number" id="q-level" min="1" max="100" placeholder="Niveau" class="bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-green-500 outline-none">
+                        <input type="text" id="q-route" list="route-list" placeholder="Lieu de capture" autocomplete="off" class="bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-green-500 outline-none">
+                    </div>
+                    <div class="flex items-center justify-between gap-2 mt-2">
+                        <select id="q-gender" class="bg-gray-900 text-white px-2 py-1.5 rounded border border-gray-600 text-sm outline-none">
+                            <option value="None">⚪ Sans genre</option>
+                            <option value="M">♂️ Mâle</option>
+                            <option value="F">♀️ Femelle</option>
+                        </select>
+                        <label class="flex items-center text-xs text-yellow-400 cursor-pointer font-bold"><input type="checkbox" id="q-shiny" class="mr-1 accent-yellow-500"> ✨ Shiny</label>
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded font-bold text-sm transition-colors">➕ Ajouter</button>
+                    </div>
+                </form>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" id="team-container">
                     <!-- Les 6 slots d'équipe seront générés ici -->
                 </div>
@@ -204,8 +248,8 @@
                 </div>
 
                 <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700/50">
-                    <h3 class="text-sm font-bold text-sky-400 mb-3 flex items-center gap-1">📦 Boîtes PC & Synchronisation</h3>
-                    <div class="grid grid-cols-2 gap-3 mb-3">
+                    <h3 class="text-sm font-bold text-sky-400 mb-3 flex items-center gap-1">📦 Boîtes PC</h3>
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">Durée du slide (sec)</label>
                             <input type="number" id="cfg-box-slide" min="0" max="10" step="0.1" class="w-full bg-gray-800 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-sky-500 outline-none">
@@ -214,16 +258,6 @@
                             <label class="block text-xs text-gray-400 mb-1">Affichage par boîte (sec)</label>
                             <input type="number" id="cfg-box-cycle" min="1" max="300" step="1" class="w-full bg-gray-800 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-sky-500 outline-none">
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">📡 Intervalle de mise à jour automatique d'OBS</label>
-                        <select id="cfg-auto-sync" class="w-full bg-gray-800 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-sky-500 outline-none">
-                            <option value="0">Désactivée (Manuel uniquement)</option>
-                            <option value="5">Toutes les 5 secondes</option>
-                            <option value="10">Toutes les 10 secondes</option>
-                            <option value="30">Toutes les 30 secondes</option>
-                            <option value="60">Toutes les minutes</option>
-                        </select>
                     </div>
                 </div>
             </div>

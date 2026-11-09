@@ -3,7 +3,6 @@ let pokemonDict = [];
 let currentState = createEmptyState();
 let selectedBoxIndex = null; 
 let pendingDeathData = null; 
-let autoSyncTimer = null;
 let pcSearchTimeout = null;
 
 let stateHistory = [];
@@ -16,27 +15,16 @@ function saveStateToHistory() {
 }
 
 function undoLastAction() {
+    if (stateHistory.length === 0) {
+        showToast("Rien à annuler.", "error");
+        return;
+    }
     if (stateHistory.length > 0) {
         currentState = stateHistory.pop();
-        saveToLocalStorage();
-        socket.emit('update_state', currentState);
-        
-        renderTeamForm();
-        renderBoxGrid();
-        renderBoxSlotPanel();
-        renderCemetery();
-        startAutoSyncTimer();
-        
-        const qStart = document.getElementById('quick-cem-start');
-        const qEnd = document.getElementById('quick-cem-end');
-        if (qStart && currentState.config) qStart.value = currentState.config.cemeteryStartText || '';
-        if (qEnd && currentState.config) qEnd.value = currentState.config.cemeteryEndText || '';
-
+        commitState();
+        renderAll();
         showToast("⏪ Action annulée avec succès !");
-        
-        if (stateHistory.length === 0) {
-            document.getElementById('undo-btn').classList.add('hidden');
-        }
+        updateUndoButton();
     }
 }
 
@@ -65,6 +53,35 @@ function showToast(message, type = 'success') {
     }, 4000);
 }
 
+function commitState() {
+    saveToLocalStorage();
+    socket.emit('update_state', currentState);
+    renderCounters();
+    renderRouteList();
+}
+
+function syncQuickCemeteryInputs() {
+    const qStart = document.getElementById('quick-cem-start');
+    const qEnd = document.getElementById('quick-cem-end');
+    if (qStart && currentState.config) qStart.value = currentState.config.cemeteryStartText || '';
+    if (qEnd && currentState.config) qEnd.value = currentState.config.cemeteryEndText || '';
+}
+
+function renderAll() {
+    renderTeamForm();
+    renderBoxGrid();
+    renderBoxSlotPanel();
+    renderCemetery();
+    renderCounters();
+    renderRouteList();
+    syncQuickCemeteryInputs();
+}
+
+function updateUndoButton() {
+    const undoBtn = document.getElementById('undo-btn');
+    if (undoBtn) undoBtn.classList.toggle('hidden', stateHistory.length === 0);
+}
+
 function saveToLocalStorage() {
     localStorage.setItem('poke_stream_manual_state_v4', JSON.stringify(currentState));
 }
@@ -80,21 +97,6 @@ function loadFromLocalStorage() {
         } catch (e) {
             console.error("Erreur de stockage local :", e);
         }
-    }
-}
-
-function startAutoSyncTimer() {
-    if (autoSyncTimer) {
-        clearInterval(autoSyncTimer);
-        autoSyncTimer = null;
-    }
-    const interval = currentState.config.autoSyncInterval || 0;
-    const dot = document.getElementById('auto-sync-dot');
-    if (interval > 0) {
-        dot.classList.remove('hidden');
-        autoSyncTimer = setInterval(() => { pushUpdate(true); }, interval * 1000);
-    } else {
-        dot.classList.add('hidden');
     }
 }
 
@@ -134,25 +136,8 @@ function handleDragLeave(event) {
 
 function formatPokemonForDestination(p, destType) {
     if (!p) return null;
-    const cleanEnSpecies = p.enSpecies || getEnName(p.frSpecies || p.nickname || '');
-    const spriteName = getSpriteString(cleanEnSpecies);
-    
-    let spriteUrl = '';
-    if (destType === 'team') {
-        spriteUrl = getShowdownSpriteUrl(cleanEnSpecies, p.isShiny);
-    } else {
-        spriteUrl = `/sprites/${spriteName}.png`;
-    }
-
-    return {
-        nickname: p.nickname,
-        frSpecies: p.frSpecies,
-        enSpecies: cleanEnSpecies,
-        gender: p.gender,
-        isShiny: p.isShiny || false,
-        sprite: spriteUrl,
-        fallback: `https://img.pokemondb.net/sprites/home/normal/${spriteName}.png`
-    };
+    const enSpecies = p.enSpecies || getEnName(p.frSpecies || p.nickname || '');
+    return makePokemon({ ...p, enSpecies }, destType);
 }
 
 function handleDrop(event, targetType, targetIndex) {
@@ -185,8 +170,7 @@ function handleDrop(event, targetType, targetIndex) {
         if (sourceType === 'team') currentState.team[sourceIndex] = formatPokemonForDestination(targetPokemon, 'team');
         else currentState.boxes[currentState.currentBoxIndex][sourceIndex] = formatPokemonForDestination(targetPokemon, 'box');
 
-        saveToLocalStorage();
-        socket.emit('update_state', currentState);
+        commitState();
         
         renderTeamForm();
         renderBoxGrid();
@@ -240,7 +224,6 @@ function openConfigModal() {
     document.getElementById('cfg-cem-end').value = config.cemeteryEndText;
     document.getElementById('cfg-box-slide').value = config.boxSlideDuration;
     document.getElementById('cfg-box-cycle').value = config.boxCycleDuration || 5;
-    document.getElementById('cfg-auto-sync').value = config.autoSyncInterval || 0;
 
     const modal = document.getElementById('config-modal');
     modal.classList.remove('hidden');
@@ -264,19 +247,16 @@ function saveConfig() {
         cemeteryStartText: document.getElementById('cfg-cem-start').value.trim() || DEFAULT_CONFIG.cemeteryStartText,
         cemeteryEndText: document.getElementById('cfg-cem-end').value.trim() || DEFAULT_CONFIG.cemeteryEndText,
         boxSlideDuration: Number(document.getElementById('cfg-box-slide').value) || DEFAULT_CONFIG.boxSlideDuration,
-        boxCycleDuration: Number(document.getElementById('cfg-box-cycle').value) || DEFAULT_CONFIG.boxCycleDuration,
-        autoSyncInterval: Number(document.getElementById('cfg-auto-sync').value) || DEFAULT_CONFIG.autoSyncInterval
+        boxCycleDuration: Number(document.getElementById('cfg-box-cycle').value) || DEFAULT_CONFIG.boxCycleDuration
     };
     
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     
     const qStart = document.getElementById('quick-cem-start');
     const qEnd = document.getElementById('quick-cem-end');
     if (qStart) qStart.value = currentState.config.cemeteryStartText;
     if (qEnd) qEnd.value = currentState.config.cemeteryEndText;
 
-    startAutoSyncTimer();
     closeConfigModal();
     showToast("⚙️ Configurations sauvegardées et appliquées sur OBS !");
 }
@@ -288,8 +268,7 @@ function updateQuickCemeteryTexts() {
     currentState.config.cemeteryStartText = document.getElementById('quick-cem-start').value.trim() || DEFAULT_CONFIG.cemeteryStartText;
     currentState.config.cemeteryEndText = document.getElementById('quick-cem-end').value.trim() || DEFAULT_CONFIG.cemeteryEndText;
     
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     showToast("✏️ Textes du cimetière mis à jour !");
 }
 
@@ -325,12 +304,7 @@ socket.on('init', (data) => {
         currentState = data.state;
     }
     
-    const qStart = document.getElementById('quick-cem-start');
-    const qEnd = document.getElementById('quick-cem-end');
-    if (qStart && currentState.config) qStart.value = currentState.config.cemeteryStartText || '';
-    if (qEnd && currentState.config) qEnd.value = currentState.config.cemeteryEndText || '';
-
-    startAutoSyncTimer();
+    renderMobileInfo(data.info);
 
     const dataList = document.getElementById('pokemon-list');
     dataList.innerHTML = '';
@@ -340,10 +314,7 @@ socket.on('init', (data) => {
         dataList.appendChild(option);
     });
 
-    renderTeamForm();
-    renderBoxGrid();
-    renderBoxSlotPanel();
-    renderCemetery();
+    renderAll();
 });
 
 socket.on('state_updated', (newState) => {
@@ -354,11 +325,9 @@ socket.on('state_updated', (newState) => {
 
     currentState = newState;
     saveToLocalStorage();
-    
-    const qStart = document.getElementById('quick-cem-start');
-    const qEnd = document.getElementById('quick-cem-end');
-    if (qStart && currentState.config) qStart.value = currentState.config.cemeteryStartText || '';
-    if (qEnd && currentState.config) qEnd.value = currentState.config.cemeteryEndText || '';
+    syncQuickCemeteryInputs();
+    renderCounters();
+    renderRouteList();
 
     const activeId = document.activeElement ? document.activeElement.id : null;
     const isTypingInTeam = activeId && activeId.startsWith('t-');
@@ -373,7 +342,6 @@ socket.on('state_updated', (newState) => {
         renderBoxSlotPanel();
     }
     renderCemetery();
-    startAutoSyncTimer();
 });
 
 function handlePCSearchDebounced() {
@@ -431,8 +399,7 @@ function goToSearchResult(boxIdx, slotIdx) {
     selectedBoxIndex = slotIdx;
     document.getElementById('pc-search-input').value = "";
     document.getElementById('pc-search-results').classList.add('hidden');
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     renderBoxGrid();
     renderBoxSlotPanel();
     showToast(`📍 Localisé dans la Boîte ${boxIdx + 1} (Slot ${slotIdx + 1}) !`);
@@ -465,10 +432,14 @@ function renderTeamForm() {
                 <button id="dead-btn-${i}" onclick="triggerTeamDead(${i})" class="${p ? '' : 'hidden '}text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors" title="Envoyer directement au Cimetière">⚰️</button>
                 <button onclick="clearTeamSlot(${i})" class="text-xs bg-gray-600 hover:bg-red-500 text-white px-2 py-1 rounded transition-colors" title="Vider le slot">🗑️</button>
             </div>
-            <span class="text-xs text-gray-400 font-bold mb-1 block font-mono text-center">Slot ${i + 1}</span>
+            <span class="text-xs text-gray-400 font-bold mb-1 block font-mono text-center">Slot ${i + 1} <span class="text-gray-600 font-normal">· Alt+${i + 1}</span></span>
             <input type="text" id="t-nick-${i}" placeholder="Surnom" value="${p ? escapeHtml(p.nickname) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded mb-1.5 border border-gray-600 text-sm focus:border-blue-500 outline-none" onchange="autoFillTeamSpecies(${i})">
             <input type="text" id="t-spec-${i}" list="pokemon-list" placeholder="Espèce (Français)" value="${p ? escapeHtml(p.frSpecies) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded mb-2 border border-gray-600 text-sm focus:border-blue-500 outline-none" onchange="updateTeamStateFromUI()">
-            
+            <div class="flex gap-1.5 mb-2">
+                <input type="number" id="t-level-${i}" min="1" max="100" placeholder="Niv." value="${p && p.level ? escapeHtml(p.level) : ''}" class="w-16 bg-gray-900 text-white px-2 py-1 rounded border border-gray-600 text-xs focus:border-blue-500 outline-none" onchange="updateTeamStateFromUI()">
+                <input type="text" id="t-route-${i}" list="route-list" placeholder="Lieu de capture" value="${p && p.route ? escapeHtml(p.route) : ''}" class="flex-1 min-w-0 bg-gray-900 text-white px-2 py-1 rounded border border-gray-600 text-xs focus:border-blue-500 outline-none" onchange="updateTeamStateFromUI()">
+            </div>
+
             <div class="flex items-center justify-between mt-1">
                 <div class="flex gap-2">
                     <label class="flex items-center text-sm cursor-pointer"><input type="radio" name="gender-${i}" value="M" ${p && p.gender === 'M' ? 'checked' : ''} class="mr-1 text-blue-500" onchange="updateTeamStateFromUI()"> ♂️</label>
@@ -500,8 +471,7 @@ function autoFillTeamSpecies(index) {
 function clearTeamSlot(index) {
     saveStateToHistory();
     currentState.team[index] = null;
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     renderTeamForm();
     showToast(`Slot équipe ${index + 1} vidé.`);
 }
@@ -526,27 +496,15 @@ function updateTeamStateFromUI() {
             continue;
         }
 
-        const enSpecies = getEnName(frSpecies || nickname);
-        const spriteName = getSpriteString(enSpecies);
-
-        const spriteUrl = getShowdownSpriteUrl(enSpecies, isShiny);
-
-        currentState.team[i] = {
-            nickname: nickname || frSpecies,
-            frSpecies: frSpecies || nickname,
-            enSpecies: enSpecies,
-            gender: gender,
-            isShiny: isShiny,
-            sprite: spriteUrl,
-            fallback: `https://img.pokemondb.net/sprites/home/normal/${spriteName}.png`
-        };
+        const level = document.getElementById(`t-level-${i}`)?.value || '';
+        const route = document.getElementById(`t-route-${i}`)?.value || '';
+        currentState.team[i] = makePokemon({ nickname, frSpecies, enSpecies: getEnName(frSpecies || nickname), gender, isShiny, level, route }, 'team');
     }
     for (let i = 0; i < 6; i++) {
         const deadBtn = document.getElementById(`dead-btn-${i}`);
         if (deadBtn) deadBtn.classList.toggle('hidden', !currentState.team[i]);
     }
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
 }
 
 function openDeathModal(pokemonName, sourceInfo) {
@@ -558,14 +516,24 @@ function openDeathModal(pokemonName, sourceInfo) {
 
     pendingDeathData = sourceInfo; 
     document.getElementById('death-modal-subtitle').innerText = `Gravure dans la pierre de : ${pokemonName}`;
-    document.getElementById('death-level').value = "";
+    const pokemon = getSourcePokemon(sourceInfo);
+    const levelInput = document.getElementById('death-level');
+    levelInput.value = pokemon && pokemon.level ? pokemon.level : "";
     document.getElementById('death-cause').value = "";
 
     modal.classList.remove('hidden');
     setTimeout(() => {
         modal.classList.remove('opacity-0');
         modal.firstElementChild.classList.remove('scale-95');
+        (levelInput.value ? document.getElementById('death-cause') : levelInput).focus();
     }, 10);
+}
+
+function getSourcePokemon(source) {
+    if (!source) return null;
+    if (source.type === 'team') return currentState.team[source.index];
+    if (source.type === 'pc') return currentState.boxes[currentState.currentBoxIndex][source.index];
+    return source.data || null;
 }
 
 function closeDeathModal() {
@@ -582,42 +550,20 @@ function confirmDeathSend() {
     const level = document.getElementById('death-level').value.trim();
     const cause = document.getElementById('death-cause').value.trim();
 
-    let targetPokemon = null;
-    saveStateToHistory(); 
+    saveStateToHistory();
+    const source = pendingDeathData.type === 'pc' ? { ...pendingDeathData, boxIndex: currentState.currentBoxIndex } : pendingDeathData;
+    const entry = recordDeath(currentState, source, { level, cause });
 
-    if (pendingDeathData.type === 'team') {
-        targetPokemon = currentState.team[pendingDeathData.index];
-        currentState.team[pendingDeathData.index] = null;
-    } else if (pendingDeathData.type === 'pc') {
-        targetPokemon = currentState.boxes[currentState.currentBoxIndex][pendingDeathData.index];
-        currentState.boxes[currentState.currentBoxIndex][pendingDeathData.index] = null;
-    } else if (pendingDeathData.type === 'manual') {
-        targetPokemon = pendingDeathData.data;
-    }
-
-    if (targetPokemon) {
-        const spriteName = getSpriteString(targetPokemon.enSpecies);
-        
-        currentState.cemetery.push({
-            nickname: targetPokemon.nickname,
-            frSpecies: targetPokemon.frSpecies,
-            enSpecies: targetPokemon.enSpecies,
-            gender: targetPokemon.gender || 'None',
-            isShiny: Boolean(targetPokemon.isShiny),
-            sprite: `/sprites/${spriteName}.png`,
-            level: level || null,
-            deathCause: cause || null
-        });
-
-        saveToLocalStorage();
-        socket.emit('update_state', currentState);
-        
+    if (entry) {
+        commitState();
         renderTeamForm();
         renderBoxGrid();
         renderBoxSlotPanel();
         renderCemetery();
-        
-        showToast(`⚰️ ${targetPokemon.nickname} repose désormais en paix au cimetière.`);
+        showToast(`⚰️ ${entry.nickname} repose désormais en paix au cimetière.`);
+    } else {
+        stateHistory.pop();
+        updateUndoButton();
     }
 
     closeDeathModal();
@@ -720,8 +666,7 @@ function prevBox() {
     if (currentState.currentBoxIndex > 0) {
         currentState.currentBoxIndex--;
         selectedBoxIndex = null;
-        saveToLocalStorage();
-        socket.emit('update_state', currentState);
+        commitState();
         renderBoxGrid();
         renderBoxSlotPanel();
         showToast(`Affichage : Boîte PC ${currentState.currentBoxIndex + 1}`);
@@ -732,8 +677,7 @@ function nextBox() {
     if (currentState.currentBoxIndex < currentState.boxes.length - 1) {
         currentState.currentBoxIndex++;
         selectedBoxIndex = null;
-        saveToLocalStorage();
-        socket.emit('update_state', currentState);
+        commitState();
         renderBoxGrid();
         renderBoxSlotPanel();
         showToast(`Affichage : Boîte PC ${currentState.currentBoxIndex + 1}`);
@@ -744,8 +688,7 @@ function addNewBox() {
     currentState.boxes.push(Array(30).fill(null));
     currentState.currentBoxIndex = currentState.boxes.length - 1;
     selectedBoxIndex = null;
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     renderBoxGrid();
     renderBoxSlotPanel();
     showToast(`📦 Nouvelle Boîte PC ${currentState.boxes.length} ajoutée !`);
@@ -780,8 +723,7 @@ function deleteCurrentBox(btn) {
         }
         selectedBoxIndex = null;
         
-        saveToLocalStorage();
-        socket.emit('update_state', currentState);
+        commitState();
         renderBoxGrid();
         renderBoxSlotPanel();
         showToast("🗑️ Boîte PC supprimée !");
@@ -812,6 +754,16 @@ function renderBoxSlotPanel() {
                 <input type="text" id="b-spec" list="pokemon-list" placeholder="Ex: Bulbizarre" value="${p ? escapeHtml(p.frSpecies) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-blue-500 outline-none">
             </div>
             
+            <div class="grid grid-cols-3 gap-2">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-0.5">Niveau</label>
+                    <input type="number" id="b-level" min="1" max="100" placeholder="Niv." value="${p && p.level ? escapeHtml(p.level) : ''}" class="w-full bg-gray-900 text-white px-2 py-1.5 rounded border border-gray-600 text-sm focus:border-blue-500 outline-none">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs text-gray-400 mb-0.5">Lieu de capture</label>
+                    <input type="text" id="b-route" list="route-list" placeholder="Ex: Route 1" value="${p && p.route ? escapeHtml(p.route) : ''}" class="w-full bg-gray-900 text-white px-3 py-1.5 rounded border border-gray-600 text-sm focus:border-blue-500 outline-none">
+                </div>
+            </div>
             <div class="flex items-center justify-between py-1 bg-gray-800/40 p-2 rounded border border-gray-700/30">
                 <div class="flex gap-2">
                     <label class="flex items-center text-xs cursor-pointer"><input type="radio" name="b-gender" value="M" ${p && p.gender === 'M' ? 'checked' : ''} class="mr-1"> ♂️</label>
@@ -866,20 +818,11 @@ function saveBoxSlot() {
         return;
     }
 
-    const enSpecies = getEnName(frSpecies || nickname);
-    const spriteName = getSpriteString(enSpecies);
+    const level = document.getElementById('b-level').value;
+    const route = document.getElementById('b-route').value;
+    currentState.boxes[currentState.currentBoxIndex][selectedBoxIndex] = makePokemon({ nickname, frSpecies, enSpecies: getEnName(frSpecies || nickname), gender, isShiny, level, route }, 'box');
 
-    currentState.boxes[currentState.currentBoxIndex][selectedBoxIndex] = {
-        nickname: nickname || frSpecies,
-        frSpecies: frSpecies || nickname,
-        enSpecies: enSpecies,
-        gender: gender,
-        isShiny: isShiny,
-        sprite: `/sprites/${spriteName}.png`
-    };
-
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     renderBoxGrid();
     renderBoxSlotPanel();
     showToast(`💾 Slot ${selectedBoxIndex + 1} (Boîte ${currentState.currentBoxIndex + 1}) mis à jour !`);
@@ -888,8 +831,7 @@ function saveBoxSlot() {
 function clearBoxSlot(index) {
     saveStateToHistory(); 
     currentState.boxes[currentState.currentBoxIndex][index] = null;
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     renderBoxGrid();
     renderBoxSlotPanel();
     showToast(`Slot PC ${index + 1} vidé.`);
@@ -916,6 +858,8 @@ function renderCemetery() {
             if (p.deathCause) detailsText += escapeHtml(p.deathCause);
             detailsText += `</div>`;
         }
+        const extra = [p.route ? `📍 ${escapeHtml(p.route)}` : '', formatDeathDate(p.diedAt)].filter(Boolean).join(' · ');
+        if (extra) detailsText += `<div class="text-[10px] text-gray-500 mt-0.5">${extra}</div>`;
 
         div.innerHTML = `
             <div class="flex items-center">
@@ -949,20 +893,10 @@ function resurrectToPC(index) {
 
     saveStateToHistory();
     const enSpecies = p.enSpecies || getEnName(p.frSpecies || p.nickname);
-    const spriteName = getSpriteString(enSpecies);
-
-    currentState.boxes[currentState.currentBoxIndex][emptyBoxIndex] = {
-        nickname: p.nickname,
-        frSpecies: p.frSpecies || p.nickname,
-        enSpecies: enSpecies,
-        gender: ['M', 'F'].includes(p.gender) ? p.gender : 'None',
-        isShiny: Boolean(p.isShiny),
-        sprite: `/sprites/${spriteName}.png`
-    };
+    currentState.boxes[currentState.currentBoxIndex][emptyBoxIndex] = makePokemon({ ...p, frSpecies: p.frSpecies || p.nickname, enSpecies }, 'box');
 
     currentState.cemetery.splice(index, 1);
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     renderCemetery();
     renderBoxGrid();
     showToast(`🔮 ${p.nickname} ressuscité dans la Boîte PC ${currentState.currentBoxIndex + 1} (Slot ${emptyBoxIndex + 1}) !`);
@@ -972,18 +906,10 @@ function removeDead(index) {
     saveStateToHistory(); 
     const removed = currentState.cemetery[index];
     currentState.cemetery.splice(index, 1);
-    saveToLocalStorage();
-    socket.emit('update_state', currentState);
+    commitState();
     renderCemetery();
     if (removed) {
         showToast(`🔮 ${removed.nickname} a été retiré du cimetière.`);
-    }
-}
-
-function pushUpdate(silent = false) {
-    updateTeamStateFromUI();
-    if (!silent) {
-        showToast("📡 Overlays synchronisés sur OBS !");
     }
 }
 
@@ -1007,6 +933,8 @@ function sanitizePokemon(p) {
         enSpecies: String(p.enSpecies || '').substring(0, 30),
         gender: ['M', 'F', 'None'].includes(p.gender) ? p.gender : 'None',
         isShiny: Boolean(p.isShiny),
+        level: p.level ? String(p.level).substring(0, 3) : null,
+        route: p.route ? String(p.route).substring(0, 40) : null,
         sprite: String(p.sprite || ''),
         fallback: String(p.fallback || '')
     };
@@ -1036,6 +964,7 @@ function sanitizeImportedState(imported) {
             if (safeP) {
                 safeP.level = p.level ? String(p.level).substring(0, 3) : null;
                 safeP.deathCause = p.deathCause ? String(p.deathCause).substring(0, 100) : null;
+                safeP.diedAt = typeof p.diedAt === 'string' ? p.diedAt.substring(0, 30) : null;
             }
             return safeP;
         }).filter(p => p !== null);
@@ -1043,6 +972,12 @@ function sanitizeImportedState(imported) {
 
     safeState.currentBoxIndex = typeof imported.currentBoxIndex === 'number' ? Math.max(0, Math.min(imported.currentBoxIndex, safeState.boxes.length - 1)) : 0;
     
+    const importedCounters = imported.counters || {};
+    safeState.counters = {
+        badges: Math.max(0, Math.min(99, parseInt(importedCounters.badges, 10) || 0)),
+        attempts: Math.max(1, Math.min(999, parseInt(importedCounters.attempts, 10) || 1))
+    };
+
     const importedConfig = imported.config || {};
     safeState.config = {
         cemeterySpeed: Number(importedConfig.cemeterySpeed) || DEFAULT_CONFIG.cemeterySpeed,
@@ -1050,8 +985,7 @@ function sanitizeImportedState(imported) {
         cemeteryStartText: String(importedConfig.cemeteryStartText || DEFAULT_CONFIG.cemeteryStartText),
         cemeteryEndText: String(importedConfig.cemeteryEndText || DEFAULT_CONFIG.cemeteryEndText),
         boxSlideDuration: Number(importedConfig.boxSlideDuration) || DEFAULT_CONFIG.boxSlideDuration,
-        boxCycleDuration: Number(importedConfig.boxCycleDuration) || DEFAULT_CONFIG.boxCycleDuration,
-        autoSyncInterval: Number(importedConfig.autoSyncInterval) || DEFAULT_CONFIG.autoSyncInterval
+        boxCycleDuration: Number(importedConfig.boxCycleDuration) || DEFAULT_CONFIG.boxCycleDuration
     };
 
     return safeState;
@@ -1068,15 +1002,9 @@ function importData(event) {
             saveStateToHistory(); 
             
             currentState = sanitizeImportedState(imported);
-            saveToLocalStorage();
-            socket.emit('update_state', currentState);
-            startAutoSyncTimer();
-            
-            renderTeamForm();
-            renderBoxGrid();
-            renderBoxSlotPanel();
-            renderCemetery();
-            showToast("📥 Données importées et sécurisées avec succès !");
+            commitState();
+        renderAll();
+        showToast("📥 Données importées et sécurisées avec succès !");
         } catch (err) {
             showToast("❌ Impossible de lire ce fichier JSON.", "error");
         }
@@ -1105,14 +1033,205 @@ function clearAllData(btn) {
         
         currentState = createEmptyState();
         selectedBoxIndex = null;
-        saveToLocalStorage();
-        socket.emit('update_state', currentState);
-        startAutoSyncTimer();
-        
-        renderTeamForm();
-        renderBoxGrid();
-        renderBoxSlotPanel();
-        renderCemetery();
+        commitState();
+        renderAll();
         showToast("🗑️ Toutes vos données ont été nettoyées !");
     }
 }
+
+
+// --- CONNEXION AU SERVEUR ---
+function setConnectionStatus(connected) {
+    const dot = document.getElementById('conn-dot');
+    const label = document.getElementById('conn-label');
+    const banner = document.getElementById('conn-banner');
+    if (!dot || !label) return;
+    dot.className = `w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`;
+    label.innerText = connected ? 'Serveur connecté' : 'Serveur déconnecté';
+    label.className = connected ? 'text-green-400' : 'text-red-400';
+    if (banner) banner.classList.toggle('hidden', connected);
+}
+
+socket.on('connect', () => setConnectionStatus(true));
+socket.on('disconnect', () => setConnectionStatus(false));
+socket.on('connect_error', () => setConnectionStatus(false));
+
+// --- AIDE & MOBILE ---
+function toggleHelpPanel() {
+    document.getElementById('help-panel').classList.toggle('hidden');
+}
+
+function renderMobileInfo(info) {
+    const container = document.getElementById('mobile-info');
+    if (!container || !info) return;
+    const localUrl = `${location.protocol}//${location.host}/mobile.html`;
+    if (info.mobileUrls && info.mobileUrls.length > 0) {
+        container.innerHTML = `<p>Sur le même Wi-Fi, ouvrez sur votre téléphone :</p>` +
+            info.mobileUrls.map(url => `<p><a href="${escapeHtml(url)}" target="_blank" class="font-mono text-green-300 underline">${escapeHtml(url)}</a></p>`).join('');
+    } else {
+        container.innerHTML = `
+            <p>Version compacte : <a href="${escapeHtml(localUrl)}" target="_blank" class="font-mono text-green-300 underline">${escapeHtml(localUrl)}</a></p>
+            <p class="text-xs text-gray-400">Pour l'ouvrir depuis un téléphone, relancez le serveur avec <code class="bg-gray-900 px-1 rounded">HOST=0.0.0.0</code> : les adresses à utiliser s'afficheront ici.</p>`;
+    }
+}
+
+// --- COMPTEURS ---
+function counterCard(label, value, key, color) {
+    const controls = key
+        ? `<div class="flex gap-1">
+               <button onclick="changeCounter('${key}', -1)" class="bg-gray-700 hover:bg-gray-600 w-8 h-8 rounded font-bold" title="Retirer 1">−</button>
+               <button onclick="changeCounter('${key}', 1)" class="bg-gray-700 hover:bg-gray-600 w-8 h-8 rounded font-bold" title="Ajouter 1">+</button>
+           </div>`
+        : `<span class="text-[10px] text-gray-500 uppercase font-bold">auto</span>`;
+    return `
+        <div class="bg-gray-800 rounded-xl px-4 py-3 flex items-center justify-between shadow">
+            <div>
+                <div class="text-xs text-gray-400 font-bold">${label}</div>
+                <div class="text-2xl font-black ${color}">${value}</div>
+            </div>
+            ${controls}
+        </div>`;
+}
+
+function renderCounters() {
+    const bar = document.getElementById('counters-bar');
+    if (!bar) return;
+    const c = getCounters(currentState);
+    bar.innerHTML = counterCard('💀 Morts', c.deaths, null, 'text-red-400')
+        + counterCard('🎯 Captures', c.captures, null, 'text-green-400')
+        + counterCard('🏅 Badges', c.badges, 'badges', 'text-yellow-400')
+        + counterCard('🔁 Tentative', c.attempts, 'attempts', 'text-sky-400');
+}
+
+function changeCounter(key, delta) {
+    const counters = { badges: 0, attempts: 1, ...currentState.counters };
+    const min = key === 'attempts' ? 1 : 0;
+    counters[key] = Math.max(min, Math.min(999, (Number(counters[key]) || min) + delta));
+    currentState.counters = counters;
+    commitState();
+}
+
+// --- LIEUX DE CAPTURE ---
+function getAllPokemon() {
+    return [...currentState.team, ...currentState.boxes.flat(), ...currentState.cemetery].filter(Boolean);
+}
+
+function renderRouteList() {
+    const list = document.getElementById('route-list');
+    if (!list) return;
+    const routes = [...new Set(getAllPokemon().map(p => p.route).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+    list.innerHTML = routes.map(r => `<option value="${escapeHtml(r)}"></option>`).join('');
+}
+
+function formatDeathDate(iso) {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (isNaN(date)) return '';
+    return date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// --- CAPTURE RAPIDE ---
+function quickCapture(event) {
+    event.preventDefault();
+    const specInput = document.getElementById('q-spec');
+    const frSpecies = specInput.value.trim();
+    if (!frSpecies) {
+        showToast("⚠️ Indiquez au moins l'espèce.", "error");
+        specInput.focus();
+        return;
+    }
+    const nickname = document.getElementById('q-nick').value.trim();
+    const route = document.getElementById('q-route').value.trim();
+    const sameRoute = route && getAllPokemon().find(p => p.route && p.route.toLowerCase() === route.toLowerCase());
+
+    saveStateToHistory();
+    const slot = placePokemon(currentState, {
+        nickname: nickname || frSpecies,
+        frSpecies,
+        enSpecies: getEnName(frSpecies),
+        gender: document.getElementById('q-gender').value,
+        isShiny: document.getElementById('q-shiny').checked,
+        level: document.getElementById('q-level').value,
+        route
+    });
+
+    if (!slot) {
+        stateHistory.pop();
+        updateUndoButton();
+        showToast("⚠️ L'équipe et toutes les boîtes sont pleines : ajoutez une boîte PC.", "error");
+        return;
+    }
+
+    commitState();
+    renderTeamForm();
+    renderBoxGrid();
+    renderBoxSlotPanel();
+
+    const name = nickname || frSpecies;
+    showToast(slot.type === 'team'
+        ? `➕ ${name} rejoint l'équipe (slot ${slot.index + 1}) !`
+        : `➕ ${name} envoyé dans la Boîte ${slot.boxIndex + 1} (slot ${slot.index + 1}).`);
+    if (sameRoute) {
+        showToast(`⚠️ Déjà une capture sur « ${route} » : ${sameRoute.nickname}.`, "error");
+    }
+
+    document.getElementById('quick-capture').reset();
+    specInput.focus();
+}
+
+// --- RACCOURCIS CLAVIER ---
+function isTypingTarget(el) {
+    return !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
+}
+
+function isModalOpen(id) {
+    const modal = document.getElementById(id);
+    return !!modal && !modal.classList.contains('hidden');
+}
+
+document.addEventListener('keydown', (e) => {
+    const deathOpen = isModalOpen('death-details-modal');
+    const configOpen = isModalOpen('config-modal');
+
+    if (e.key === 'Escape') {
+        if (deathOpen) closeDeathModal();
+        else if (configOpen) closeConfigModal();
+        else {
+            document.getElementById('pc-search-results').classList.add('hidden');
+            if (document.activeElement) document.activeElement.blur();
+        }
+        return;
+    }
+    if (deathOpen) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmDeathSend();
+        }
+        return;
+    }
+    if (configOpen) return;
+
+    if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-6]$/.test(e.code)) {
+        e.preventDefault();
+        if (document.activeElement && document.activeElement.id && document.activeElement.id.startsWith('t-')) {
+            document.activeElement.blur();
+        }
+        const index = Number(e.code.slice(5)) - 1;
+        if (currentState.team[index]) triggerTeamDead(index);
+        else showToast(`Slot d'équipe ${index + 1} vide.`, "error");
+        return;
+    }
+
+    if (isTypingTarget(e.target)) return;
+
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undoLastAction();
+    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key === '/') {
+        e.preventDefault();
+        document.getElementById('pc-search-input').focus();
+    } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        document.getElementById('q-spec').focus();
+    }
+});
