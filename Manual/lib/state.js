@@ -9,7 +9,9 @@ function isValidState(state) {
         && Array.isArray(state.cemetery)
         && Number.isInteger(state.currentBoxIndex)
         && state.currentBoxIndex >= 0 && state.currentBoxIndex < state.boxes.length
-        && (state.config === undefined || (typeof state.config === 'object' && state.config !== null));
+        && (state.config === undefined || (typeof state.config === 'object' && state.config !== null))
+        && (state.counters === undefined || (typeof state.counters === 'object' && state.counters !== null))
+        && (state.lastDeath === undefined || state.lastDeath === null || typeof state.lastDeath === 'object');
 }
 
 function loadState(filePath) {
