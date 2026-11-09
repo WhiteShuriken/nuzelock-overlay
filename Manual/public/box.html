@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nuzlocke - PC Box Overlay 312x282</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/tailwind.css">
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/common.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
         
         body { 
             font-family: 'Inter', sans-serif; 
@@ -137,19 +137,7 @@
     <script>
         const socket = io();
 
-        function escapeHtml(value) {
-            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        }
 
-        function getSpriteString(name) {
-            if (!name) return '';
-            return name.toLowerCase()
-                .replace(/♀/g, '-f').replace(/♂/g, '-m')
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/[.'’:]/g, '')
-                .trim().replace(/\s+/g, '-')
-                .replace(/[^a-z0-9-]/g, '');
-        }
         
         let latestState = null;
         let currentDisplayBoxIndex = 0; 

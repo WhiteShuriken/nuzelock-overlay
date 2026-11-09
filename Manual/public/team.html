@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nuzlocke - Team Overlay Manuel 1200x150</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/css/tailwind.css">
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/common.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@900&display=swap');
         
         body { 
             font-family: 'Inter', sans-serif; 
@@ -162,9 +162,6 @@
     <script>
         const socket = io();
 
-        function escapeHtml(value) {
-            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        }
 
         function updateSlot(index, pokemon) {
             const slot = document.getElementById(`slot-${index}`);
