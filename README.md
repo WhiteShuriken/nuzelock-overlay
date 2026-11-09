@@ -74,7 +74,7 @@ npm install
 npm start
 ```
 
-Le serveur démarre par défaut sur le port **3000** (modifiable via la variable d'environnement `PORT`, ex : `PORT=4000 npm start`) et distribue les accès suivants :
+Le serveur démarre par défaut sur `http://localhost:3000` et distribue les accès suivants :
 
 | Interface | URL Locale | Usages |
 | :--- | :--- | :--- |
@@ -83,12 +83,32 @@ Le serveur démarre par défaut sur le port **3000** (modifiable via la variable
 | **Overlay Cimetière** | http://localhost:3000/cemetery.html | À intégrer sur OBS (Défilé des Pokémon K.O.) |
 | **Overlay Boîte PC** | http://localhost:3000/box.html | À intégrer sur OBS (Vue sur le PC) |
 
+#### Variables d'environnement
+
+| Variable | Défaut | Rôle |
+| :--- | :--- | :--- |
+| `PORT` | `3000` | Port d'écoute du serveur. |
+| `HOST` | `127.0.0.1` | Interface d'écoute. Par défaut, seul ce PC peut accéder au dashboard. Utilisez `HOST=0.0.0.0` si OBS tourne sur un autre PC du réseau local (toute personne sur le réseau pourra alors modifier l'overlay). |
+| `STATE_FILE` | `Manual/state.json` | Fichier de sauvegarde de la session (équipe, PC, cimetière, configuration). |
+
+Exemple : `HOST=0.0.0.0 PORT=4000 npm start` (sous Windows PowerShell : `$env:HOST="0.0.0.0"; npm start`).
+
 ### 4) Synchronisation en temps réel (Socket.IO)
 * Le **Dashboard** envoie instantanément les modifications d'état via WebSockets dès que vous déplacez un Pokémon.
 * Les **Overlays** reçoivent la mise à jour en temps réel et se rafraîchissent de manière fluide sans recharger la page.
 
 ### 5) Gestion des ressources locales
-* **Dossier de sprites locaux :** Servis via la route `/sprites` ➔ reliée à `Manual/Cemetery/CemeteryOverlaySprite/`.
+* **Dossier de sprites locaux :** Servis via la route `/sprites` ➔ reliée à `Cemetery/CemeteryOverlaySprite/` (dossier partagé avec l'overlay autonome du cimetière).
+* **Sauvegarde :** L'état est enregistré automatiquement dans `Manual/state.json` et restauré au redémarrage du serveur (le navigateur du dashboard garde aussi une copie locale).
+* **Hors-ligne :** Tailwind CSS et la police Inter sont servis localement (`Manual/public/css/tailwind.css`, `Manual/public/fonts/`). Seuls les sprites animés Showdown et le secours Pokémon Database nécessitent internet.
+
+### 6) Développement
+```bash
+cd Manual
+npm test            # Tests (node:test) : dictionnaire CSV, sprites, validation, serveur
+npm run build:css   # Regénère public/css/tailwind.css après modification des classes Tailwind
+```
+Le code JavaScript du dashboard est dans `Manual/public/js/dashboard.js`, les utilitaires partagés (sprites, échappement HTML, configuration par défaut) dans `Manual/public/js/common.js`, et la logique serveur dans `Manual/lib/`. La CI GitHub Actions lance les tests à chaque push.
 * **Dictionnaire :** Le serveur charge la base de données de traduction depuis le fichier `Manual/data pokemon - Pokemon Dico.csv`.
 
 ---
