@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuzlocke - Alerte de mort 1920x1080</title>
+    <link rel="stylesheet" href="/css/tailwind.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/common.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: transparent !important;
+            margin: 0;
+            overflow: hidden;
+            width: 1920px;
+            height: 1080px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rip-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 36px 72px 32px;
+            border-radius: 28px;
+            background: radial-gradient(circle at top, rgba(60, 10, 10, 0.92), rgba(10, 10, 15, 0.92));
+            border: 3px solid rgba(239, 68, 68, 0.7);
+            box-shadow: 0 0 60px rgba(239, 68, 68, 0.45), 0 20px 50px rgba(0, 0, 0, 0.7);
+            color: white;
+            text-align: center;
+            opacity: 0;
+            transform: scale(0.6);
+        }
+        .rip-card.hidden { display: none; }
+        .rip-card.show { animation: rip-in 0.7s cubic-bezier(.2, 1.4, .4, 1) forwards; }
+        .rip-card.hide { animation: rip-out 0.6s ease-in forwards; }
+
+        @keyframes rip-in {
+            from { opacity: 0; transform: scale(0.6) translateY(40px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes rip-out {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.9) translateY(30px); }
+        }
+
+        .rip-title {
+            font-size: 64px;
+            font-weight: 900;
+            letter-spacing: 0.2em;
+            color: #ef4444;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9);
+        }
+        .rip-sprite {
+            width: 220px;
+            height: 220px;
+            object-fit: contain;
+            filter: grayscale(100%) brightness(1.15) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.8));
+            margin: 10px 0;
+        }
+        .rip-name {
+            font-size: 52px;
+            font-weight: 900;
+            text-transform: uppercase;
+            text-shadow: 0 3px 8px rgba(0, 0, 0, 0.9);
+        }
+        .rip-species { font-size: 26px; font-weight: 900; color: #d1d5db; }
+        .rip-details { font-size: 26px; font-weight: 900; color: #fca5a5; margin-top: 10px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div id="rip-card" class="rip-card hidden"></div>
+
+    <script>
+        const socket = io();
+        // Options OBS : ?duration=8&scale=1&sprites=local
+        const OPTIONS = parseOverlayParams(location.search);
+        if (OPTIONS.scale !== 1) document.body.style.zoom = OPTIONS.scale;
+
+        let lastSeenId = null;
+        const queue = [];
+        let playing = false;
+
+        function render(death) {
+            const details = [death.level ? `Niv. ${escapeHtml(death.level)}` : '', death.deathCause ? escapeHtml(death.deathCause) : '', death.route ? escapeHtml(death.route) : '']
+                .filter(Boolean).join(' — ');
+            const species = death.frSpecies && death.frSpecies !== death.nickname ? `<div class="rip-species">${escapeHtml(death.frSpecies)}</div>` : '';
+            return `
+                <div class="rip-title">R.I.P.</div>
+                ${spriteImgHtml(death, OPTIONS.sprites, 'class="rip-sprite" alt=""')}
+                <div class="rip-name">${escapeHtml(death.nickname)}</div>
+                ${species}
+                ${details ? `<div class="rip-details">${details}</div>` : ''}
+            `;
+        }
+
+        function playNext() {
+            if (playing || queue.length === 0) return;
+            playing = true;
+            const card = document.getElementById('rip-card');
+            card.innerHTML = render(queue.shift());
+            card.classList.remove('hidden', 'hide');
+            void card.offsetWidth;
+            card.classList.add('show');
+            setTimeout(() => {
+                card.classList.remove('show');
+                card.classList.add('hide');
+                setTimeout(() => {
+                    card.classList.add('hidden');
+                    playing = false;
+                    playNext();
+                }, 600);
+            }, OPTIONS.duration * 1000);
+        }
+
+        function handleState(state, isInit) {
+            const death = state && state.lastDeath;
+            const id = death && Number(death.id) || 0;
+            // À la connexion on mémorise la dernière mort sans la rejouer ; ensuite seules les morts plus récentes s'affichent
+            if (isInit || lastSeenId === null) {
+                lastSeenId = id;
+                return;
+            }
+            if (id > lastSeenId) {
+                lastSeenId = id;
+                queue.push(death);
+                playNext();
+            }
+        }
+
+        socket.on('init', data => handleState(data.state, true));
+        socket.on('state_updated', state => handleState(state, false));
+    </script>
+</body>
+</html>

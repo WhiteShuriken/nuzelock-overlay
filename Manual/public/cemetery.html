@@ -100,7 +100,9 @@
 
     <script>
         const socket = io();
-
+        // Options OBS : ?scale=1.5&details=0
+        const OPTIONS = parseOverlayParams(location.search);
+        if (OPTIONS.scale !== 1) document.body.style.zoom = OPTIONS.scale;
 
         const CONFIG = {
             messageDebut: "Ils nous ont quittés :",
@@ -133,7 +135,7 @@
         function createHTML(cemetery) {
             const listHtml = cemetery.map(p => {
                 let detailsText = '';
-                if (p.level || p.deathCause) {
+                if (OPTIONS.showDetails && (p.level || p.deathCause)) {
                     detailsText = ' (';
                     if (p.level) detailsText += `Niv.${escapeHtml(p.level)}`;
                     if (p.level && p.deathCause) detailsText += ' — ';
@@ -144,7 +146,7 @@
                 // Hauteur verrouillée à 46px maximum (avec max-h et h) pour empêcher tout débordement de la zone de 70px
                 return `
                     <div class="death-entry">
-                        <img src="${escapeHtml(p.sprite)}" class="max-h-[46px] h-[46px] w-auto object-contain grayscale-filter mr-2" onerror="this.style.display='none'">
+                        ${spriteImgHtml(p, 'local', 'class="max-h-[46px] h-[46px] w-auto object-contain grayscale-filter mr-2"')}
                         <span class="nickname-text">${escapeHtml(p.nickname)}</span>
                         ${detailsText ? `<span class="details-badge">${detailsText}</span>` : ''}
                     </div>

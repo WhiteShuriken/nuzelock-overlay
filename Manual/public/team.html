@@ -28,6 +28,18 @@
             justify-items: center;
         }
 
+        /* team.html?layout=vertical : colonne de 200x900 */
+        body.vertical, body.vertical .team-container { width: 200px; height: 900px; }
+        body.vertical .team-container { grid-template-columns: 1fr; grid-template-rows: repeat(6, 1fr); }
+
+        .level-text {
+            color: #fde68a;
+            font-weight: 900;
+            font-size: 0.95rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            white-space: nowrap;
+        }
+
         .pokemon-slot {
             display: flex;
             flex-direction: column;
@@ -161,7 +173,10 @@
 
     <script>
         const socket = io();
-
+        // Options OBS : ?layout=vertical&scale=1.5&level=0&nickname=0&sprites=local
+        const OPTIONS = parseOverlayParams(location.search);
+        if (OPTIONS.layout === 'vertical') document.body.classList.add('vertical');
+        if (OPTIONS.scale !== 1) document.body.style.zoom = OPTIONS.scale;
 
         function updateSlot(index, pokemon) {
             const slot = document.getElementById(`slot-${index}`);
@@ -172,7 +187,7 @@
                 return;
             }
 
-            const pkmnId = `${pokemon.nickname}-${pokemon.enSpecies}-${pokemon.isShiny ? 'shiny' : 'normal'}`;
+            const pkmnId = `${pokemon.nickname}-${pokemon.enSpecies}-${pokemon.isShiny ? 'shiny' : 'normal'}-${pokemon.level || ''}`;
             if (slot.getAttribute('data-id') === pkmnId) return;
 
             slot.setAttribute('data-id', pkmnId);
@@ -184,15 +199,12 @@
                 <div class="sprite-container fade-in">
                     <div class="poke-platform"></div>
                     <div class="poke-glow" style="background: radial-gradient(circle, ${pokemon.isShiny ? 'rgba(250,204,21,0.45)' : 'rgba(255,255,255,0.3)'} 0%, rgba(255,255,255,0) 70%)"></div>
-                    <img src="${escapeHtml(pokemon.sprite)}" 
-                         alt="${escapeHtml(pokemon.frSpecies)}" 
-                         class="pokemon-sprite" 
-                         data-fallback="${escapeHtml(pokemon.fallback)}"
-                         onerror="this.onerror=null; if (this.dataset.fallback) this.src=this.dataset.fallback;">
+                    ${spriteImgHtml(pokemon, OPTIONS.sprites, `alt="${escapeHtml(pokemon.frSpecies)}" class="pokemon-sprite"`)}
                 </div>
                 <div class="info-container fade-in">
-                    <span class="nickname-text">${escapeHtml(pokemon.nickname)}</span>
+                    <span class="nickname-text">${escapeHtml(OPTIONS.showNickname ? pokemon.nickname : pokemon.frSpecies)}</span>
                     ${genderHtml}
+                    ${OPTIONS.showLevel && pokemon.level ? `<span class="level-text">N.${escapeHtml(pokemon.level)}</span>` : ''}
                 </div>
             `;
         }
