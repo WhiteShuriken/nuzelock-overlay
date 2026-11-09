@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    defaults:
+      run:
+        working-directory: Manual
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: Manual/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Vérifie que public/css/tailwind.css est à jour
+        run: |
+          npm run build:css
+          git diff --exit-code -- public/css/tailwind.css
