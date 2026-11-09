@@ -462,7 +462,7 @@ function renderTeamForm() {
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path></svg>
             </div>
             <div class="absolute top-2 right-2 flex gap-1">
-                ${p ? `<button onclick="triggerTeamDead(${i})" class="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors" title="Envoyer directement au Cimetière">⚰️</button>` : ''}
+                <button id="dead-btn-${i}" onclick="triggerTeamDead(${i})" class="${p ? '' : 'hidden '}text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors" title="Envoyer directement au Cimetière">⚰️</button>
                 <button onclick="clearTeamSlot(${i})" class="text-xs bg-gray-600 hover:bg-red-500 text-white px-2 py-1 rounded transition-colors" title="Vider le slot">🗑️</button>
             </div>
             <span class="text-xs text-gray-400 font-bold mb-1 block font-mono text-center">Slot ${i + 1}</span>
@@ -540,6 +540,10 @@ function updateTeamStateFromUI() {
             sprite: spriteUrl,
             fallback: `https://img.pokemondb.net/sprites/home/normal/${spriteName}.png`
         };
+    }
+    for (let i = 0; i < 6; i++) {
+        const deadBtn = document.getElementById(`dead-btn-${i}`);
+        if (deadBtn) deadBtn.classList.toggle('hidden', !currentState.team[i]);
     }
     saveToLocalStorage();
     socket.emit('update_state', currentState);
